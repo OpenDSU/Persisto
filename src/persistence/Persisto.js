@@ -142,11 +142,11 @@ function Persisto(smartStorage, systemLogger, config) {
         return await smartStorage.createIndex(typeName, fieldName);
     }
 
-    this.createCollection = async function (collectionName, typeName, fieldName) {
+    this.createGrouping = async function (collectionName, typeName, fieldName) {
         addIndexFunctionToSelf(collectionName, fieldName, async function (value) {
             return await smartStorage.getCollectionByField(collectionName, value);
         });
-        return await smartStorage.createCollection(collectionName, typeName, fieldName);
+        return await smartStorage.createGrouping(collectionName, typeName, fieldName);
     }
 }
 
@@ -156,14 +156,21 @@ module.exports = {
         console.debug(">>>>> Initialising persisto with elementStorageStrategy", elementStorageStrategy, "and logger", logger);
         let instance = new Persisto(elementStorageStrategy, logger);
         let assetsMixin = require("./AssetsMixin.js").getAssetsMixin(elementStorageStrategy, logger);
-
-        for(let key in assetsMixin){
-            if(instance[key]){
-                $$.throwError(`Key ${key} already exists in persisto`);
+        let alreadyAdded = {"configureAssets": true};
+        instance.configureAssets = function (config) {
+            assetsMixin.configureAssets(config);
+            for(let key in assetsMixin){
+                if(alreadyAdded[key]){
+                    continue;
+                }
+                if(instance[key]){
+                    $$.throwError(`Key ${key} already exists in persisto`);
+                }
+                console.debug(">>>>> Adding function'", key, "'to persisto instance");
+                instance[key] = assetsMixin[key];
+                alreadyAdded[key] = true;
             }
-            console.debug(">>>>> Adding function'", key, "'to persisto instance");
-            instance[key] = assetsMixin[key];
-        }
+        };
         return instance;
     }
 

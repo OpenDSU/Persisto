@@ -264,7 +264,7 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
         return await self.loadObject(indexValueAsId);
     }
 
-    this.createCollection = async function (collectionName, typeName, fieldName) {
+    this.createGrouping = async function (collectionName, typeName, fieldName) {
         if(_collections[typeName]){
             $$.throwError(new Error("Collection for type " + typeName + " already exists!"));
         }

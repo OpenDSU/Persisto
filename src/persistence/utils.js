@@ -110,7 +110,7 @@ function getShortName(inputString, prefix) {
 
 module.exports = {
     convertToBase36Id,
-    MathMoney,
+    MathMoney : new MathMoney(),
     getFullName,
     getShortName,
     transformToAccountID

@@ -1,7 +1,7 @@
 
 import {} from "./testInit/clean.mjs";
 
-$$.clean();
+await $$.clean();
 
 import {initialisePersisto} from '../index.js';
 
@@ -25,6 +25,8 @@ persistoInstance.configureAssets( {
     "NFT": ["name", "description", "ownerName", "ownerURL", "ownerDescription"]
 });
 
-await persistoInstance.createIndex("userLoginStatus", "email");
+await persistoInstance.createIndex("type1", "email");
+
+await persistoInstance.createGrouping("user", "user", "email");
 
 persistoInstance.shutDown();
