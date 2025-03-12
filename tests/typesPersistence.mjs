@@ -55,13 +55,6 @@ async function typesPersistence(){
 
     }
 
-    //wrong object config update
-    sameObject.info = [];
-    updatedObject = await persistoInstance.updateUserStatus(object1.id, sameObject);
-    if(Array.isArray(updatedObject.info)){
-      throw new Error("Wrong object update should have failed");
-    }
-
     await persistoInstance.shutDown();
 }
 

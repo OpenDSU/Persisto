@@ -264,13 +264,9 @@ function AssetsMixin(smartStorage, systemAudit) {
         return true;
     }
 
-    /*this.getUserLogs = async function (userID) {
-        return await systemAudit.getUserLogs(userID);
-    }
-
     this.loginEvent = function (userID, state, reason) {
         auditLog(AUDIT_EVENTS.LOGIN, userID, state, reason);
-    }; */
+    };
 
     this.addController = async function (objectId, newController, role) {
         let controllers = smartStorage.getProperty(objectId, "controllers");
