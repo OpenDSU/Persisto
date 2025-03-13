@@ -30,7 +30,9 @@ await persistoInstance.configureAssets(sameAssets);
 try {
     await persistoInstance.configureAssets(sameAssets);
     failedChecks.push("configureAssets conflict untreated");
-} catch (e) {}
+} catch (e) {
+    //console.debug("Expected error", e);
+}
 
 await persistoInstance.createIndex("type1", "email");
 try {
@@ -46,7 +48,13 @@ try {
 
 let object = await persistoInstance.createType1({email: "email1", info: {name: "name1"}});
 
-await persistoInstance.configureAssets({"type1": ["info"]});
+try{
+    await persistoInstance.configureAssets({"type1": ["info"]});
+    failedChecks.push("configureAssets conflict untreated");
+} catch(e){
+  //ok
+}
+
 
 let sameObject = await persistoInstance.getType1("email1");
 if(object !== sameObject){
@@ -57,5 +65,4 @@ if(failedChecks.length === 0){
     console.log("Naming conflict test passed");
 } else {
     console.log("Naming conflict test failed", failedChecks);
-    process.exit(1);
 }

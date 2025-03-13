@@ -10,8 +10,7 @@ module.exports = {
         if(!logger){
           logger = getSystemAudit(1000);
         }
-       let autoSaver = await getAutoSaverPersistence();
-        await autoSaver.init();
-       return await initialisePersisto(autoSaver, logger);
+        let autoSaver = await getAutoSaverPersistence();
+        return await initialisePersisto(autoSaver, logger);
    }
 };

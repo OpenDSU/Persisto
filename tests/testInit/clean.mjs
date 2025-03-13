@@ -12,7 +12,7 @@ if(typeof globalThis.$$.throwError === "undefined"){
             error = new Error(error + " " + args.join(" "));
         }
         let errStr = args.join(" ");
-        console.debug("Throwing err:", error, errStr);
+        //console.debug("Throwing err:", error, errStr);
         throw error;
     }
 
@@ -26,7 +26,7 @@ if (typeof globalThis.$$.registerPlugin === "undefined") {
     async function registerPlugin(pluginName, path){
         let pluginInstance = await require(path).getInstance();
         if(typeof pluginInstance === "undefined"){
-            $$.throwError("Invalid plugin. getInstance() method returned undefined for plugin", pluginName);
+            await $$.throwError("Invalid plugin. getInstance() method returned undefined for plugin", pluginName);
         }
         plugins[pluginName] = pluginInstance;
     }

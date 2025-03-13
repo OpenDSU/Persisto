@@ -157,14 +157,18 @@ module.exports = {
         let instance = new Persisto(elementStorageStrategy, logger);
         let assetsMixin = require("./AssetsMixin.js").getAssetsMixin(elementStorageStrategy, logger);
         let alreadyAdded = {"configureAssets": true};
-        instance.configureAssets = function (config) {
-            assetsMixin.configureAssets(config);
+        instance.configureAssets = async function (config) {
+            try{
+                await assetsMixin.configureAssets(config);
+            } catch(e){
+               throw e;
+            }
             for(let key in assetsMixin){
                 if(alreadyAdded[key]){
                     continue;
                 }
                 if(instance[key]){
-                    $$.throwError(`Key ${key} already exists in persisto`);
+                    await $$.throwError(`Key ${key} already exists in persisto` + JSON.stringify(alreadyAdded));
                 }
                 console.debug(">>>>> Adding function'", key, "'to persisto instance");
                 instance[key] = assetsMixin[key];

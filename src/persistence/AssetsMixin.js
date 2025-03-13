@@ -99,7 +99,7 @@ function AssetsMixin(smartStorage, systemAudit) {
             let obj = {accountNumber};
             for (let property in initialValues) {
                 if (!hasField(itemType, property)) {
-                    $$.throwError(new Error("Invalid property named " + property + " in initialisation values for item type " + itemType));
+                    await $$.throwError(new Error("Invalid property named " + property + " in initialisation values for item type " + itemType));
                     return undefined;
                 }
                 obj.availableBalance = 0;
@@ -124,7 +124,7 @@ function AssetsMixin(smartStorage, systemAudit) {
         //console.log(config[itemType]);
         return async function (objectID, value) {
             if (!hasField(itemType, property)) {
-                $$.throwError(new Error("Unknown property named " + property + " for item type " + itemType));
+                await $$.throwError(new Error("Unknown property named " + property + " for item type " + itemType));
             }
             await smartStorage.updateProperty(objectID, property, value);
             return value;
@@ -152,7 +152,7 @@ function AssetsMixin(smartStorage, systemAudit) {
     this.mintPoints = async function (amount) {
         let initialMintingDone = await smartStorage.getProperty("system", "initialMintingDone");
         if (initialMintingDone === true) {
-            $$.throwError(new Error("Initial minting already done!"), "Failing to mint " + amount + " points", "Initial minting already done!");
+            await $$.throwError(new Error("Initial minting already done!"), "Failing to mint " + amount + " points", "Initial minting already done!");
         }
 
         let availableBalance = this.getBalance("system");
@@ -169,7 +169,7 @@ function AssetsMixin(smartStorage, systemAudit) {
     this.rewardFounder = async function (userID, amount) {
         let foundersRewardDone = await smartStorage.getProperty("system", "foundersRewardDone");
         if (foundersRewardDone === true) {
-            $$.throwError(new Error("Founders already rewarded!"), "Failing to reward " + amount + " points", "Founders already rewarded!");
+            await $$.throwError(new Error("Founders already rewarded!"), "Failing to reward " + amount + " points", "Founders already rewarded!");
         }
         await this.rewardUser(userID, amount, "Founders reward");
         await smartStorage.updateProperty("system", "foundersRewardDone", true);
@@ -182,7 +182,7 @@ function AssetsMixin(smartStorage, systemAudit) {
         let obj = await smartStorage.loadObject(objectID);
         //await console.debug(" <<<<<< Dumping object before locking", obj);
         if (obj.availableBalance < amount) {
-            $$.throwError(new Error("Insufficient points to lock"), "Failing to lock " + amount + " points", " having only " + obj.availableBalance);
+            await $$.throwError(new Error("Insufficient points to lock"), "Failing to lock " + amount + " points", " having only " + obj.availableBalance);
         }
         obj.availableBalance -= amount;
         obj.lockedBalance += amount;
@@ -200,7 +200,7 @@ function AssetsMixin(smartStorage, systemAudit) {
         //console.debug(" >>>>> Unlocking " + amount + " points for " + objectID + " for " + reason);
         let obj = await smartStorage.loadObject(objectID);
         if (obj.lockedBalance < amount) {
-            $$.throwError(new Error("Insufficient points to unlock " + amount + " points" + " having only " + obj.lockedBalance));
+            await $$.throwError(new Error("Insufficient points to unlock " + amount + " points" + " having only " + obj.lockedBalance));
         }
         obj.lockedBalance -= amount;
         obj.availableBalance += amount;
@@ -237,7 +237,7 @@ function AssetsMixin(smartStorage, systemAudit) {
         let fromObj = await smartStorage.loadObject(fromId);
         let toObj = await smartStorage.loadObject(toID);
         if (fromObj.availableBalance < amount) {
-            $$.throwError(new Error("Transfer rejected"), "Failing to transfer " + amount + " points", " having only " + fromObj.availableBalance + " from " + fromId + " to " + toID);
+            await $$.throwError(new Error("Transfer rejected"), "Failing to transfer " + amount + " points", " having only " + fromObj.availableBalance + " from " + fromId + " to " + toID);
         }
         fromObj.availableBalance -= amount;
         toObj.availableBalance += amount;

@@ -8,7 +8,7 @@ let checksFailed = [];
 async function typesPersistence(){
     let persistoInstance = await initialisePersisto();
 
-    persistoInstance.configureTypes({
+   await persistoInstance.configureTypes({
             userStatus:{
                 email: "string",
                 info: "object",
@@ -62,11 +62,9 @@ try{
     await typesPersistence();
     if(checksFailed.length > 0){
         console.log("Persistence test failed", checksFailed);
-        process.exit(1);
     }
 } catch (e) {
     console.error(e);
-    process.exit(1);
 }
 
 

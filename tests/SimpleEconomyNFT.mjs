@@ -3,10 +3,11 @@ await $$.clean();
 import {initialisePersisto} from '../index.js';
 
 let failedChecks = [];
-async function SimpleEconomyNFT(){
-    let persistoInstance = await initialisePersisto();
+let persistoInstance = await initialisePersisto();
+const users = [];
 
-    persistoInstance.configureAssets( {
+async function SimpleEconomyNFT(){
+    await persistoInstance.configureAssets( {
         "user": ["email", "name", "loginEvent", "invitingUserID", "level", "lockedAmountForInvitingUser", "lockedAmountUntilValidation"],
         "NFT": ["name", "description", "ownerName", "ownerId", "points"]
     });
@@ -24,7 +25,6 @@ async function SimpleEconomyNFT(){
     let founder = await persistoInstance.createUser(founderConfig);
     await persistoInstance.rewardFounder(founder.id, rewardPoints);
 
-    const users = [];
     const nfts = [];
 
     const prefix = "user";
@@ -53,7 +53,6 @@ async function SimpleEconomyNFT(){
         throw new Error("System balance mismatch expected 0 got " + updatedSystemBalance);
     }
 
-
     console.log("Start testing...", nfts[0], nfts[1], nfts[2], nfts[3], nfts[4], nfts[5], nfts[6], nfts[7], nfts[8], nfts[9]);
 
     let boostAmount = 1000;
@@ -64,10 +63,6 @@ async function SimpleEconomyNFT(){
     await persistoInstance.transferPoints(boostAmount, users[0], users[1] , "Gift points for " + users[1]);
 
     await persistoInstance.shutDown();
-
-    console.log( ">>>>>>> Checking logs...");
-    console.log("Founder logs: ", await persistoInstance.getUserLogs(users[0]));
-    console.log( "<<<<<<< End Checking logs...");
 
     let expectedBalance = [98000, 100000, 100000, 100000, 100000, 100000, 100000, 100000 , 100000 ];
     let currentBalance = 0;
@@ -80,15 +75,11 @@ async function SimpleEconomyNFT(){
     }
 }
 
-try{
-    await SimpleEconomyNFT();
-    if(failedChecks.length > 0){
-        console.log("Test failed", failedChecks);
-        process.exit(1);
-    }
-    process.exit(0);
-} catch (e) {
-    console.error(e);
-    process.exit(1);
-}
+await SimpleEconomyNFT();
 
+console.log( ">>>>>>> Checking logs...");
+console.log("Founder logs: ", await persistoInstance.getUserLogs(users[0]));
+console.log( "<<<<<<< End Checking logs...");
+
+console.assert(failedChecks.length === 0, "Test failed", failedChecks);
+console.log("Test ended successfully");

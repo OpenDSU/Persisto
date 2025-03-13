@@ -6,7 +6,7 @@ let failedChecks = [];
 async function lockedPoints(){
     let persistoInstance = await initialisePersisto();
 
-    persistoInstance.configureAssets( {
+    await persistoInstance.configureAssets( {
         "user": ["email", "name", "loginEvent", "invitingUserID", "level", "lockedAmountForInvitingUser", "lockedAmountUntilValidation"],
         "NFT": ["name", "description", "ownerName", "ownerId", "points"]
     });

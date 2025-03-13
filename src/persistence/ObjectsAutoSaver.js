@@ -27,7 +27,7 @@ function SimpleFSStorageStrategy() {
     this.loadObject = async function (id, allowMissing) {
         try{
             if(!id){
-                $$.throwError("An object identifier is required for loading!" + " Provided id is: " + id);
+                await $$.throwError("An object identifier is required for loading!" + " Provided id is: " + id);
                 return undefined;
             }
             const filePath = getFilePath(id);
@@ -35,7 +35,7 @@ function SimpleFSStorageStrategy() {
             return JSON.parse(data);
         } catch (error) {
             if(!allowMissing){
-                $$.throwError(error,`Error loading object with id [${id}]` , "Allow missing is:", typeof allowMissing, allowMissing, "Error is:");
+                await $$.throwError(error,`Error loading object with id [${id}]` , "Allow missing is:", typeof allowMissing, allowMissing, "Error is:");
             }
             return undefined;
         }
@@ -59,7 +59,7 @@ function SimpleFSStorageStrategy() {
             const filePath = getFilePath(id);
             await fs.writeFile(filePath, JSON.stringify(obj, null, 2), 'utf8');
         } catch (error) {
-            $$.throwError(error, `Error storing object [${id}] Error is:` + error.message);
+            await $$.throwError(error, `Error storing object [${id}] Error is:` + error.message);
         }
     };
 }
@@ -69,8 +69,13 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
 
     let cache = {};
     let modified = {};
+    let alreadyInitialized  = false;
 
     this.init = async function(){
+        if(alreadyInitialized){
+            await $$.throwError(new Error("AutoSaverPersistence already initialised!"));
+        }
+        alreadyInitialized = true;
         let systemObject = await storageStrategy.loadObject("system", true);
         if(!systemObject || !systemObject.currentNumber === undefined){
             systemObject = await self.createObject("system", { currentNumber: 1});
@@ -92,7 +97,7 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
         }
         cache[id] = await storageStrategy.loadObject(id, true);
         if(cache[id]){
-            $$.throwError(new Error("Object with ID " + id + " already exists!"));
+            await $$.throwError(new Error("Object with ID " + id + " already exists!"));
         }
         cache[id] = obj;
         obj.id = id;
@@ -170,7 +175,7 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
             }
         }
         if(fieldName !== indexFieldName){
-            $$.throwError(new Error("Field " + fieldName + " is not indexed for type " + typeName));
+            await $$.throwError(new Error("Field " + fieldName + " is not indexed for type " + typeName));
         }
 
         //console.debug(">>> Updating field " + fieldName + " for type " + typeName + " from " + oldValue + " to " + newValue);
@@ -182,7 +187,7 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
         let index = await loadWithCache(indexId);
 
         if(index.ids[newValue] !== undefined) {
-            $$.throwError(new Error("Index for field " + fieldName + " already exists for value " + newValue));
+            await $$.throwError(new Error("Index for field " + fieldName + " already exists for value " + newValue));
         }
         //console.debug(">>> Updating index" + fieldName + " for type " + typeName + " from " + oldValue + " to " + newValue);
         if(oldValue !== newValue){
@@ -228,7 +233,7 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
 
     this.createIndex = async function (typeName, fieldName) {
         if(_indexes[typeName]){
-            $$.throwError(new Error("Index for type " + typeName + " already exists!"));
+            await $$.throwError(new Error("Index for type " + typeName + " already exists!"));
         }
         _indexes[typeName] = fieldName;
 
@@ -266,7 +271,7 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
 
     this.createGrouping = async function (collectionName, typeName, fieldName) {
         if(_collections[typeName]){
-            $$.throwError(new Error("Collection for type " + typeName + " already exists!"));
+            await $$.throwError(new Error("Collection for type " + typeName + " already exists!"));
         }
         _collections[typeName] = {collectionName,fieldName};
 
@@ -278,7 +283,7 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
 
     }
 
-    this.getCollectionByField = async function (collectionName, fieldValue) {
+    this.getGroupingByField = async function (collectionName, fieldValue) {
         let collection = await loadWithCache(collectionName);
         return collection.items[fieldValue];
     }

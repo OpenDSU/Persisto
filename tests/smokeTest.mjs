@@ -7,7 +7,7 @@ import {initialisePersisto} from '../index.js';
 
 let persistoInstance = await initialisePersisto();
 
-persistoInstance.configureTypes({
+await persistoInstance.configureTypes({
         type1:{
         email: "string",
         info: "object",
@@ -19,7 +19,7 @@ persistoInstance.configureTypes({
     }
 );
 
-persistoInstance.configureAssets( {
+await persistoInstance.configureAssets( {
     "user": ["email","name", "loginEvent", "invitingUserID", "level", "lockedAmountForInvitingUser", "lockedAmountUntilValidation"],
     "agent": ["name" ,  "description",  "ownerName", "ownerURL", "ownerDescription"],
     "NFT": ["name", "description", "ownerName", "ownerURL", "ownerDescription"]
