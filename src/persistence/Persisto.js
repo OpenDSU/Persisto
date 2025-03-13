@@ -23,18 +23,37 @@ function Persisto(smartStorage, systemLogger, config) {
         for (let configKey in config) {
             addFunctionToSelf("create", configKey, "", getCreationFunction(configKey));
             addFunctionToSelf("update", configKey, "", async function (objectID, values) {
-                values = await smartStorage.preventIndexUpdate(configKey, values);
-                let obj = await smartStorage.loadObject(objectID);
+                let obj = await getObjectFromIdOrKey(configKey, objectID);
+                values = await smartStorage.preventIndexUpdate(configKey, values, obj);
+                if(obj === undefined){
+                    await $$.throwError("Cannot update object of type " + configKey + " with ID " + objectID + ". Object not found");
+                }
                 for(let key in values){
+                    if(key === "id"){
+                        continue;
+                    }
                     obj[key] = values[key];
                 }
-                await smartStorage.updateObject(objectID, obj);
-                await smartStorage.updateCollection(configKey, objectID);
+                await smartStorage.updateObject(obj.id, obj);
+                await smartStorage.updateCollection(configKey, obj.id);
                 return obj;
             });
 
             addFunctionToSelf("get", configKey, "", async function (objectID) {
+                if (objectID === undefined) {
+                    await $$.throwError("Object IDs must be defined. Cannot get object of type " + configKey + " with undefined ID");
+                }
                 return await getObjectFromIdOrKey(configKey, objectID);
+            });
+
+            addFunctionToSelf("has", configKey, "", async function (objectID) {
+                if (objectID === undefined) {
+                    await $$.throwError("Object IDs must be defined. Cannot get object of type " + configKey + " with undefined ID");
+                }
+                if(await smartStorage.objectExists(objectID)){
+                    return true;
+                }
+                return await smartStorage.keyExistInIndex(configKey, objectID);
             });
         }
     }
@@ -75,27 +94,39 @@ function Persisto(smartStorage, systemLogger, config) {
         return convertToBase36Id(itemType, currentNumber);
     }
 
-    async function getObjectFromIdOrKey(itemType, objectID) {
+    async function getObjectFromIdOrKey(itemType, objectID, allowMissing = false) {
         if(await smartStorage.objectExists(objectID)){
             return await smartStorage.loadObject(objectID);
         }
         // try to treat the objectID as index value
-        return  await smartStorage.getObjectByField(itemType, undefined, objectID);
+        if(!await smartStorage.keyExistInIndex(itemType, objectID)){
+            if(allowMissing){
+                return undefined;
+            }
+            await $$.throwError("Object of type " + itemType + " with ID " + objectID + " not found");
+        }
+        return  await smartStorage.getObjectByField(itemType, undefined, objectID, allowMissing);
     }
 
     function getCreationFunction(itemType) {
         return async function (initialValues) {
+            //console.debug("|||||||| Creating new object '" + itemType + "' with values ", JSON.stringify(initialValues));
             if(await smartStorage.hasCreationConflicts(itemType, initialValues)){
-                throw new Error("Creation conflicts detected! Refusing to create object of type " + itemType + " with values " + JSON.stringify(initialValues));
+                throw new Error("Creation conflicts detected! Refusing to create object of type '" + itemType + "' with values " + JSON.stringify(initialValues));
             }
             let id = nextObjectID(itemType);
             let obj = {};
-            for (let property in initialValues) {
-                obj[property] = initialValues[property];
+            if(initialValues !== undefined){
+                if(typeof initialValues !== "object"){
+                    throw new Error("Initial values must be an object " + " for object of type " + itemType + " received " + typeof initialValues);
+                }
+                for (let property in initialValues) {
+                    obj[property] = initialValues[property];
+                }
             }
             //console.debug(">>>> Created object of type " + itemType + " with id " + id, JSON.stringify(obj));
             obj = await smartStorage.createObject(id, obj);
-            auditLog(AUDIT_EVENTS.CREATE_OBJECT, undefined, itemType, id);
+            auditLog(AUDIT_EVENTS.CREATE_OBJECT, undefined, itemType, id, JSON.stringify(obj));
             await smartStorage.updateIndexedField(obj.id, itemType, undefined, undefined, undefined);
             await smartStorage.updateCollection(itemType, obj.id);
             return obj;
@@ -148,6 +179,11 @@ function Persisto(smartStorage, systemLogger, config) {
         });
         return await smartStorage.createGrouping(collectionName, typeName, fieldName);
     }
+
+    this.getLogicalTimestamp = function () {
+        return smartStorage.getLogicalTimestamp();
+    }
+
 }
 
 

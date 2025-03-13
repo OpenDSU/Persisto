@@ -89,7 +89,7 @@ function AssetsMixin(smartStorage, systemAudit) {
         let firstLetter = itemType[0].toUpperCase();
         let currentNumber = smartStorage.getNextObjectId();
         let niceId = transformToAccountID(currentNumber, firstLetter);
-        //console.debug(">>>> Next object ID for type " + itemType + " is " + niceId + " with account number " + currentNumber);
+        //console.debug(">>>> Next object ID for type " + itemType + " is " + niceId + " with account number " + currentIdNumber);
         return {accountNumber: currentNumber, id: niceId};
     }
 
