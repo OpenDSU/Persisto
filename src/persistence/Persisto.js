@@ -23,6 +23,7 @@ function Persisto(smartStorage, systemLogger, config) {
         for (let configKey in config) {
             addFunctionToSelf("create", configKey, "", getCreationFunction(configKey));
             addFunctionToSelf("update", configKey, "", async function (objectID, values) {
+                //console.debug("Updating object of type " + configKey + " with ID " + objectID + " with values ", JSON.stringify(values));
                 let obj = await getObjectFromIdOrKey(configKey, objectID);
                 values = await smartStorage.preventIndexUpdate(configKey, values, obj);
                 if(obj === undefined){

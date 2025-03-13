@@ -173,7 +173,6 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
     }
 
 
-
     this.updateIndexedField = async function (id, typeName, fieldName, oldValue, newValue) {
         let obj = await loadWithCache(id);
         let indexFieldName = _indexes[typeName];
