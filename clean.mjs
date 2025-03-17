@@ -9,6 +9,14 @@ if(typeof globalThis.$$ === "undefined"){
 if(typeof globalThis.$$.throwError === "undefined"){
     async function throwError(error, ...args) {
         if(typeof error === "string"){
+            let errorText = error + " " + args.join(" ");
+            throw Error(errorText);
+        }
+        throw error;
+    }
+
+     function throwErrorSync(error, ...args) {
+        if(typeof error === "string"){
             error = new Error(error + " " + args.join(" "));
         }
         let errStr = args.join(" ");
@@ -21,10 +29,13 @@ if(typeof globalThis.$$.throwError === "undefined"){
         }
     }
     $$.throwError = throwError;
+    $$.throwErrorSync = throwErrorSync;
+
 }
 if (typeof globalThis.$$.registerPlugin === "undefined") {
     async function registerPlugin(pluginName, path){
-        let pluginInstance = await require(path).getInstance();
+        let plug = await import(path);
+        let pluginInstance = await plug.getInstance();
         if(typeof pluginInstance === "undefined"){
             await $$.throwError("Invalid plugin. getInstance() method returned undefined for plugin", pluginName);
         }
@@ -39,8 +50,27 @@ if (typeof globalThis.$$.loadPlugin === "undefined") {
     $$.loadPlugin = loadPlugin;
 }
 
+import path from 'path';
+async function createTempDir(prefix = 'temp-') {
+    let root = "./work_space_data/";
+    try{
+        await fs.rm(root, { recursive: true, force: true });
+        await fs.mkdir(root);
+    }
+    catch(err){
+        console.log("Folder already exists");
+    }
+
+    try {
+        const tempDir = await fs.mkdtemp(path.join(root, prefix));
+        return tempDir;
+    } catch (error) {
+        console.error('Error creating temporary folder:', error);
+        throw error;
+    }
+}
+
 $$.clean = async function(){
-    await fs.rm("./work_space_data/", { recursive: true, force: true });
-    await fs.mkdir("./work_space_data/");
+    process["env"].PERSISTENCE_FOLDER = await createTempDir();
 }
 

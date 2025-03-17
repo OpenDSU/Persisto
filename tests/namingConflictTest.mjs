@@ -1,4 +1,4 @@
-import {} from "./testInit/clean.mjs";
+import {} from "../clean.mjs";
 
 await $$.clean();
 
