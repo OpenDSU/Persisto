@@ -314,6 +314,7 @@ module.exports = {
         if(!storageStrategy) {
             console.debug("No storage strategy provided, using SimpleFSStorageStrategy");
             storageStrategy = new SimpleFSStorageStrategy();
+            await storageStrategy.init();
         }
         let autoSaver = new AutoSaverPersistence(storageStrategy);
         await autoSaver.init()
