@@ -92,6 +92,11 @@ function SystemAudit(flushInterval = 1, logDir) {
     this.getUserLogs = async function (userID) {
         const fileName = getLogFileNameForUser(userID);
         try {
+            if (duringFlush) {
+                await new Promise(resolve => setTimeout(resolve, flushInterval));
+            } else {
+                await this.flush();
+            }
             return await fs.readFile(fileName, 'utf8');
         } catch (error) {
             console.error('Error reading user log file:', error);
