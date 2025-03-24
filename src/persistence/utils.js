@@ -107,51 +107,6 @@ function getShortName(inputString, prefix) {
     return prefix + str;
 }
 
-function parseThresholds(thresholds) {
-    let parsedThresholds = [];
-    for (let threshold of thresholds) {
-        if (typeof threshold !== "string") {
-            throw new Error("Invalid threshold " + threshold);
-        }
-        const [n1, n2] = threshold.split(':').map(Number);
-        parsedThresholds.push({threshold: n1, value: n2});
-    }
-    return parsedThresholds;
-}
-
-/**
- * Distributes a total reward R among a set of contributions
- * using a sublinear exponent alpha in (0,1).
- *
- * reward_i = (c_i^alpha / Σ_j c_j^alpha) * R
- *
- * @param {number[]} contributions - Array of numeric contributions (c_i).
- * @param {number} alpha - Exponent, 0 < alpha < 1.
- * @param {number} totalReward - Total reward to distribute.
- * @returns {number[]} - Rewards distributed to each contributor.
- */
-function computeStakeSublinear(contributions, alpha) {
-    // 1. Compute sum of c_i^alpha
-    const sumAlpha = contributions.reduce((acc, c) => acc + Math.pow(c, alpha), 0);
-
-    // 2. Compute each individual reward
-    return contributions.map(c => {
-        const numerator = Math.pow(c, alpha);
-        return (numerator / sumAlpha) ;
-    });
-}
-
-function computePercent(amountsDict){
-    let sum = 0;
-    for(let key in amountsDict){
-        sum += amountsDict[key];
-    }
-    let result = {};
-    for(let key in amountsDict){
-        result[key] = amountsDict[key] / sum ;
-    }
-    return result;
-}
 
 
 module.exports = {
@@ -159,8 +114,5 @@ module.exports = {
     MathMoney : new MathMoney(),
     getFullName,
     getShortName,
-    transformToAccountID,
-    parseThresholds,
-    computeStakeSublinear,
-    computePercent
+    transformToAccountID
 }
