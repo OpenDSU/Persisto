@@ -1,7 +1,6 @@
 const process = require("process");
 let fs = require("fs").promises;
 let path = require("path");
-const smartStorage = require("nodemailer/lib/mailer");
 //let coreUtils = require("../util/sopUtil.js");
 const FILE_PATH_SEPARATOR = ".";
 
@@ -76,6 +75,11 @@ function SimpleFSStorageStrategy() {
         }
     }
 }
+
+function makeSpecialName(typeName, fieldName){
+    return typeName + FILE_PATH_SEPARATOR + fieldName;
+}
+
 function AutoSaverPersistence(storageStrategy, periodicInterval) {
     this.storageStrategy = storageStrategy;
     let self = this;
@@ -204,7 +208,7 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
              return; //nothing to do
         }
 
-        let indexId = typeName + FILE_PATH_SEPARATOR + indexFieldName;
+        let indexId = makeSpecialName(typeName, indexFieldName);
         let index = await loadWithCache(indexId);
 
         if(index.ids[newValue] !== undefined) {
@@ -228,7 +232,7 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
             return false; //no index exists, so key cannot exist
         }
 
-        let indexId = typeName + FILE_PATH_SEPARATOR + indexFieldName;
+        let indexId = makeSpecialName(typeName, indexFieldName);
         let index = await loadWithCache(indexId);
         //console.debug(">>> Checking if key exists in index", key, "for type", typeName, "index is", index);
         return index.ids[key] !== undefined;
@@ -259,7 +263,7 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
          if(!indexFieldName){
              return;
          }
-         let indexId = typeName + FILE_PATH_SEPARATOR + indexFieldName;
+         let indexId = makeSpecialName(typeName, indexFieldName);
          let indexValue = obj[indexFieldName];
          let indexObj = await loadWithCache(indexId, true);
          if(!indexObj){
@@ -299,7 +303,7 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
      this.hasCreationConflicts = async function(typeName, values){
          let indexFieldName = _indexes[typeName];
          if(indexFieldName){
-             let indexId = typeName + FILE_PATH_SEPARATOR + indexFieldName;
+             let indexId = makeSpecialName(typeName, indexFieldName);
              let index = await loadWithCache(indexId);
              if(index.ids[values[indexFieldName]] !== undefined){
                  console.debug(">>> Found conflict for type " + typeName, "with value", values[indexFieldName], "and in index ", index.ids[values[indexFieldName]]);
@@ -315,7 +319,7 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
         }
         _indexes[typeName] = fieldName;
 
-        let objId = typeName + FILE_PATH_SEPARATOR + fieldName;
+        let objId = makeSpecialName(typeName ,fieldName);
         let obj = await loadWithCache(objId, true);
         if(!obj){
             await self.createObject(objId, { ids: {}});
@@ -325,7 +329,7 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
 
     this.getAllObjects = async function (typeName) {
         let fieldName = _indexes[typeName];
-        let objId = typeName + FILE_PATH_SEPARATOR + fieldName;
+        let objId = makeSpecialName(typeName, fieldName);
         let obj = await loadWithCache(objId);
         return Object.values(obj.ids);
     }
@@ -338,7 +342,7 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
           return undefined;
         }
 
-        let objId = typeName + FILE_PATH_SEPARATOR + fieldName;
+        let objId = makeSpecialName(typeName, fieldName);
         let index = await loadWithCache(objId);
         let indexValueAsId = index.ids[fieldValue];
         if(indexValueAsId === undefined){
