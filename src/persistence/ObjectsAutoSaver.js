@@ -1,6 +1,7 @@
 const process = require("process");
 let fs = require("fs").promises;
 let path = require("path");
+const smartStorage = require("nodemailer/lib/mailer");
 //let coreUtils = require("../util/sopUtil.js");
 const FILE_PATH_SEPARATOR = ".";
 
@@ -66,6 +67,14 @@ function SimpleFSStorageStrategy() {
             await $$.throwError(error, `Error storing object [${id}] Error is:` + error.message);
         }
     };
+    this.deleteObject = async function (id) {
+        try {
+            const filePath = getFilePath(id);
+            await fs.unlink(filePath);
+        } catch (error) {
+            await $$.throwError(error, `Error deleting object [${id}] Error is:` + error.message);
+        }
+    }
 }
 function AutoSaverPersistence(storageStrategy, periodicInterval) {
     this.storageStrategy = storageStrategy;
@@ -237,6 +246,51 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
              }
              if(collection.items[obj[fieldName]].indexOf(objId) === -1){
                  collection.items[obj[fieldName]].push(objId);
+                 setForSave(collectionName);
+             }
+         }
+     }
+     this.deleteIndexedField = async function (objId, typeName) {
+         let obj = await loadWithCache(objId);
+         if(!obj){
+             return;
+         }
+         let indexFieldName = _indexes[typeName]
+         if(!indexFieldName){
+             return;
+         }
+         let indexId = typeName + FILE_PATH_SEPARATOR + indexFieldName;
+         let indexValue = obj[indexFieldName];
+         let indexObj = await loadWithCache(indexId, true);
+         if(!indexObj){
+             return;
+         }
+         if(indexObj.ids[indexValue] !== undefined){
+            delete indexObj.ids[indexValue];
+            setForSave(indexId);
+         }
+     }
+     this.deleteObject = async function (typeName, id) {
+        await this.deleteIndexedField(id, typeName);
+        delete cache[id];
+        delete modified[id];
+        await storageStrategy.deleteObject(id);
+     }
+     this.removeFromCollection = async function (typeName, objId) {
+         let obj = await loadWithCache(objId);
+         if(_collections[typeName]){
+             let collectionName = _collections[typeName].collectionName;
+             let fieldName = _collections[typeName].fieldName;
+             let collection = await loadWithCache(collectionName);
+             if(!collection.items[obj[fieldName]]){
+                 return;
+             }
+             let index = collection.items[obj[fieldName]].indexOf(objId);
+             if(index !== -1){
+                 collection.items[obj[fieldName]].splice(index, 1);
+                 if(collection.items[obj[fieldName]].length === 0){
+                    delete collection.items[obj[fieldName]];
+                 }
                  setForSave(collectionName);
              }
          }

@@ -56,6 +56,15 @@ function Persisto(smartStorage, systemLogger, config) {
                 }
                 return await smartStorage.keyExistInIndex(configKey, objectID);
             });
+            addFunctionToSelf("delete", configKey, "", async function (objectID) {
+                let obj = await getObjectFromIdOrKey(configKey, objectID);
+                if(obj === undefined){
+                    await $$.throwError("Cannot delete object of type " + configKey + " with ID " + objectID + ". Object not found");
+                }
+                await smartStorage.removeFromCollection(configKey, obj.id);
+                await smartStorage.deleteObject(configKey, obj.id);
+                auditLog(AUDIT_EVENTS.DELETE, undefined, configKey, obj.id);
+            })
         }
     }
 
