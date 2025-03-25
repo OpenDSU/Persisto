@@ -170,7 +170,7 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
     }
 
     let _indexes = {};
-    let _collections = {};
+    let _groupings = {};
 
     this.preventIndexUpdate = async function (typeName, values, obj) {
         let indexFieldName = _indexes[typeName];
@@ -234,19 +234,19 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
         return index.ids[key] !== undefined;
     }
 
-     this.updateCollection = async function (typeName, objId) {
+     this.updateGrouping = async function (typeName, objId) {
          let obj = await loadWithCache(objId);
-         if(_collections[typeName]){
-             let collectionName = _collections[typeName].collectionName;
-             //console.debug(">>> Found collection" + collectionName + " grouped by field " + _collections[typeName].fieldName + " for type " + typeName);
-             let fieldName = _collections[typeName].fieldName;
-             let collection = await loadWithCache(collectionName);
-             if(!collection.items[obj[fieldName]]){
-                 collection.items[obj[fieldName]] = [];
+         if(_groupings[typeName]){
+             let groupingName = _groupings[typeName].groupingName;
+             //console.debug(">>> Found grouping" + groupingName + " grouped by field " + _groupings[typeName].fieldName + " for type " + typeName);
+             let fieldName = _groupings[typeName].fieldName;
+             let grouping = await loadWithCache(groupingName);
+             if(!grouping.items[obj[fieldName]]){
+                 grouping.items[obj[fieldName]] = [];
              }
-             if(collection.items[obj[fieldName]].indexOf(objId) === -1){
-                 collection.items[obj[fieldName]].push(objId);
-                 setForSave(collectionName);
+             if(grouping.items[obj[fieldName]].indexOf(objId) === -1){
+                 grouping.items[obj[fieldName]].push(objId);
+                 setForSave(groupingName);
              }
          }
      }
@@ -276,22 +276,22 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
         delete modified[id];
         await storageStrategy.deleteObject(id);
      }
-     this.removeFromCollection = async function (typeName, objId) {
+     this.removeFromGrouping = async function (typeName, objId) {
          let obj = await loadWithCache(objId);
-         if(_collections[typeName]){
-             let collectionName = _collections[typeName].collectionName;
-             let fieldName = _collections[typeName].fieldName;
-             let collection = await loadWithCache(collectionName);
-             if(!collection.items[obj[fieldName]]){
+         if(_groupings[typeName]){
+             let groupingName = _groupings[typeName].groupingName;
+             let fieldName = _groupings[typeName].fieldName;
+             let grouping = await loadWithCache(groupingName);
+             if(!grouping.items[obj[fieldName]]){
                  return;
              }
-             let index = collection.items[obj[fieldName]].indexOf(objId);
+             let index = grouping.items[obj[fieldName]].indexOf(objId);
              if(index !== -1){
-                 collection.items[obj[fieldName]].splice(index, 1);
-                 if(collection.items[obj[fieldName]].length === 0){
-                    delete collection.items[obj[fieldName]];
+                 grouping.items[obj[fieldName]].splice(index, 1);
+                 if(grouping.items[obj[fieldName]].length === 0){
+                    delete grouping.items[obj[fieldName]];
                  }
-                 setForSave(collectionName);
+                 setForSave(groupingName);
              }
          }
      }
@@ -347,23 +347,23 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
         return await self.loadObject(indexValueAsId, allowMissing);
     }
 
-    this.createGrouping = async function (collectionName, typeName, fieldName) {
-        if(_collections[typeName]){
-            await $$.throwError(new Error("Collection for type " + typeName + " already exists!"));
+    this.createGrouping = async function (groupingName, typeName, fieldName) {
+        if(_groupings[typeName]){
+            await $$.throwError(new Error("Grouping for type " + typeName + " already exists!"));
         }
-        _collections[typeName] = {collectionName,fieldName};
+        _groupings[typeName] = {groupingName, fieldName};
 
-        let obj = await loadWithCache(collectionName, true);
+        let obj = await loadWithCache(groupingName, true);
         if(!obj){
-            await self.createObject(collectionName, { items: {}});
-            setForSave(collectionName);
+            await self.createObject(groupingName, { items: {}});
+            setForSave(groupingName);
         }
 
     }
 
-    this.getGroupingByField = async function (collectionName, fieldValue) {
-        let collection = await loadWithCache(collectionName);
-        return collection.items[fieldValue];
+    this.getGroupingByField = async function (groupingName, fieldValue) {
+        let grouping = await loadWithCache(groupingName);
+        return grouping.items[fieldValue];
     }
 
     async function saveAll (){

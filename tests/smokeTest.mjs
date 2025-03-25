@@ -50,7 +50,7 @@ try {
 } catch (e) {
     //ok
 }
-persistoInstance.shutDown();
+await persistoInstance.shutDown();
 if(failedChecks.length > 0){
     throw new Error(failedChecks.join(", "));
 }

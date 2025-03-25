@@ -1,7 +1,7 @@
 /*
  There 3 types of objects that can be configured:
   - normal model and the Persisto will have CRUD like functions for them automaticaly
-  - index and collections on the above models
+  - index and groupings on the above models
   - digital assets objects are  objects that have a availableBalance and a lockedBalance, plus any other properties that are needed. For the creation
    of these objects and the management of their properties, dynamic functions are created based on configuration.
    Only the specified fields will be allowed
@@ -36,7 +36,7 @@ function Persisto(smartStorage, systemLogger, config) {
                     obj[key] = values[key];
                 }
                 await smartStorage.updateObject(obj.id, obj);
-                await smartStorage.updateCollection(configKey, obj.id);
+                await smartStorage.updateGrouping(configKey, obj.id);
                 return obj;
             });
 
@@ -61,7 +61,7 @@ function Persisto(smartStorage, systemLogger, config) {
                 if(obj === undefined){
                     await $$.throwError("Cannot delete object of type " + configKey + " with ID " + objectID + ". Object not found");
                 }
-                await smartStorage.removeFromCollection(configKey, obj.id);
+                await smartStorage.removeFromGrouping(configKey, obj.id);
                 await smartStorage.deleteObject(configKey, obj.id);
                 auditLog(AUDIT_EVENTS.DELETE, undefined, configKey, obj.id);
             })
@@ -138,7 +138,7 @@ function Persisto(smartStorage, systemLogger, config) {
             obj = await smartStorage.createObject(id, obj);
             auditLog(AUDIT_EVENTS.CREATE_OBJECT, undefined, itemType, id, JSON.stringify(obj));
             await smartStorage.updateIndexedField(obj.id, itemType, undefined, undefined, undefined);
-            await smartStorage.updateCollection(itemType, obj.id);
+            await smartStorage.updateGrouping(itemType, obj.id);
             return obj;
         }
     }
@@ -183,11 +183,11 @@ function Persisto(smartStorage, systemLogger, config) {
         return await smartStorage.createIndex(typeName, fieldName);
     }
 
-    this.createGrouping = async function (collectionName, typeName, fieldName) {
-        addIndexFunctionToSelf(collectionName, fieldName, async function (value) {
-            return await smartStorage.getCollectionByField(collectionName, value);
+    this.createGrouping = async function (groupingName, typeName, fieldName) {
+        addIndexFunctionToSelf(groupingName, fieldName, async function (value) {
+            return await smartStorage.getGroupingByField(groupingName, value);
         });
-        return await smartStorage.createGrouping(collectionName, typeName, fieldName);
+        return await smartStorage.createGrouping(groupingName, typeName, fieldName);
     }
 
     this.getLogicalTimestamp = function () {
