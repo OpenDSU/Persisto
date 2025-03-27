@@ -104,6 +104,10 @@ function Persisto(smartStorage, systemLogger, config) {
         return convertToBase36Id(itemType, currentNumber);
     }
 
+    this.getNextNumber = async function (itemType) {
+        return await smartStorage.getNextNumber(itemType);
+    }
+
     async function getObjectFromIdOrKey(itemType, objectID, allowMissing = false) {
         if(await smartStorage.objectExists(objectID)){
             return await smartStorage.loadObject(objectID);

@@ -108,6 +108,21 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
         return systemObject.currentIDNumber;
     }
 
+    this.getNextNumber = function(itemType){
+        let systemObject = cache["system"];
+        let nextNumber = systemObject[itemType];
+        if(!nextNumber){
+            nextNumber = systemObject[itemType] = 1;
+        }
+        else {
+            nextNumber++;
+            systemObject[itemType] = nextNumber;
+        }
+        setForSave("system");
+        return nextNumber;
+    }
+
+
     this.getLogicalTimestamp = function () {
         let systemObject = cache["system"];
         systemObject.currentClockTick++;
