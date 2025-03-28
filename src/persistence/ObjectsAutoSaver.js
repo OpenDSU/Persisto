@@ -46,7 +46,6 @@ function SimpleFSStorageStrategy() {
     }
 
     this.objectExists = async function (id) {
-
         try{
             const filePath = getFilePath(id);
             await fs.access(filePath);
@@ -66,6 +65,7 @@ function SimpleFSStorageStrategy() {
             await $$.throwError(error, `Error storing object [${id}] Error is:` + error.message);
         }
     };
+
     this.deleteObject = async function (id) {
         try {
             const filePath = getFilePath(id);
