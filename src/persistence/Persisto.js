@@ -173,6 +173,9 @@ function Persisto(smartStorage, systemLogger, config) {
         addFunctionToSelf("getEvery", typeName, "", async function () {
             return await smartStorage.getAllObjects(typeName);
         });
+        addFunctionToSelf("getEvery", typeName, "Object", async function () {
+            return await smartStorage.getAllObjectsData(typeName);
+        });
 
         addFunctionToSelf("set",
                         upCaseFirstLetter(fieldName),

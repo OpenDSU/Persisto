@@ -348,6 +348,10 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
         let obj = await loadWithCache(objId);
         return Object.values(obj.ids);
     }
+    this.getAllObjectsData = async function (typeName) {
+        let ids = await this.getAllObjects(typeName);
+        return await Promise.all(ids.map(id => this.loadObject(id)));
+    }
 
     this.getObjectByField = async function (typeName, fieldName, fieldValue, allowMissing) {
         if(!fieldName){
