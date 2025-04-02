@@ -194,7 +194,7 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
     this.preventIndexUpdate = async function (typeName, values, obj) {
         let indexFieldName = _indexes[typeName];
         if(typeof indexFieldName === "undefined"){
-            return;
+            return values;
         }
         values[indexFieldName] = obj[indexFieldName];
         return values;
