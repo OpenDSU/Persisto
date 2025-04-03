@@ -131,8 +131,6 @@ function AssetsMixin(smartStorage, systemAudit) {
         }
     }
 
-
-
     this.getBalance = async function (objectID) {
         let obj = await smartStorage.loadObject(objectID);
         if (!obj.availableBalance) {
