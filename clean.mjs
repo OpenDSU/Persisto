@@ -30,8 +30,8 @@ if(typeof globalThis.$$.throwError === "undefined"){
     }
     $$.throwError = throwError;
     $$.throwErrorSync = throwErrorSync;
-
 }
+
 if (typeof globalThis.$$.registerPlugin === "undefined") {
     async function registerPlugin(pluginName, path){
         let plug = await import(path);
