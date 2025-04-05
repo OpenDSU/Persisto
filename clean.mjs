@@ -51,8 +51,11 @@ if (typeof globalThis.$$.loadPlugin === "undefined") {
 }
 
 import path from 'path';
+if(!process["env"].PERSISTENCE_FOLDER){
+    process["env"].PERSISTENCE_FOLDER = path.join(process.cwd(), "temp_persistence");
+}
 async function createTempDir(prefix = 'temp-') {
-    let root = "./work_space_data/";
+    let root = process["env"].PERSISTENCE_FOLDER;
     try{
         await fs.rm(root, { recursive: true, force: true });
         await fs.mkdir(root);
