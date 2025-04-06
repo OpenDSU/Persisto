@@ -192,7 +192,7 @@ function SystemAudit(flushInterval = 1, logDir) {
         auditBuffer.push(entry.entryContent);
         
         if (!auditTimer) {
-            auditTimer = setTimeout(() => this.flush(), flushInterval);
+            auditTimer = setTimeout(() => this.auditFlush(), flushInterval);
         }
     }
 
@@ -216,20 +216,14 @@ function SystemAudit(flushInterval = 1, logDir) {
         }
     }
 
-    let duringFlush = false;
-    this.flush = async function () {
-        if (duringFlush) {
+    let duringLogFlush = false;
+    let duringAuditFlush = false;
+
+    this.auditFlush = async function () {
+        if (duringAuditFlush) {
             return;
         }
-        duringFlush = true;
-        
-        // Handle regular logs
-        if (buffer.length !== 0) {
-            const fileName = getLogFileName();
-            const logData = buffer.join('\n') + '\n';
-            await appendFile(fileName, logData);
-            buffer = [];
-        }
+        duringAuditFlush = true;
         
         // Handle audit logs
         if (auditBuffer.length !== 0) {
@@ -237,6 +231,29 @@ function SystemAudit(flushInterval = 1, logDir) {
             const auditData = auditBuffer.join('\n') + '\n';
             await appendFile(auditFileName, auditData);
             auditBuffer = [];
+        }
+
+        // Clear audit timer
+        if (auditTimer) {
+            clearTimeout(auditTimer);
+            auditTimer = null;
+        }
+        
+        duringAuditFlush = false;
+    };
+
+    this.flush = async function () {
+        if (duringLogFlush) {
+            return;
+        }
+        duringLogFlush = true;
+        
+        // Handle regular logs
+        if (buffer.length !== 0) {
+            const fileName = getLogFileName();
+            const logData = buffer.join('\n') + '\n';
+            await appendFile(fileName, logData);
+            buffer = [];
         }
 
         // Handle user logs
@@ -248,24 +265,19 @@ function SystemAudit(flushInterval = 1, logDir) {
             await appendFile(fileName, logData);
         }
 
-        // Clear both timers
+        // Clear logs timer
         if (logsTimer) {
             clearTimeout(logsTimer);
             logsTimer = null;
         }
         
-        if (auditTimer) {
-            clearTimeout(auditTimer);
-            auditTimer = null;
-        }
-        
-        duringFlush = false;
+        duringLogFlush = false;
     };
 
     this.getUserLogs = async function (userID) {
         const fileName = getLogFileNameForUser(userID);
         try {
-            if (duringFlush) {
+            if (duringLogFlush) {
                 await new Promise(resolve => setTimeout(resolve, flushInterval));
             } else {
                 await this.flush();
@@ -281,10 +293,10 @@ function SystemAudit(flushInterval = 1, logDir) {
     this.getAuditLogs = async function (date) {
         try {
             // Ensure any pending audit entries are written
-            if (duringFlush) {
+            if (duringAuditFlush) {
                 await new Promise(resolve => setTimeout(resolve, flushInterval));
             } else {
-                await this.flush();
+                await this.auditFlush();
             }
             
             const defaultDate = new Date().toISOString().split('T')[0];
@@ -345,9 +357,14 @@ function SystemAudit(flushInterval = 1, logDir) {
         }
     }
 
-    process.on('exit', () => this.flush());
-    process.on('SIGINT', () => {
-        this.flush().then(() => process.exit());
+    process.on('exit', async () => {
+        await this.flush();
+        await this.auditFlush();
+    });
+    
+    process.on('SIGINT', async () => {
+        await this.flush();
+        await this.auditFlush();
     });
 }
 
