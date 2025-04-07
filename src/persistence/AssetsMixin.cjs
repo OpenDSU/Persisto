@@ -3,7 +3,7 @@
  For the creation of these objects and the management of their properties, dynamic functions are created based on configuration.
 
  */
-const {transformToAccountID, MathMoney} = require("./utils.js");
+const {transformToAccountID, MathMoney} = require("./utils.cjs");
 
 const AUDIT_EVENTS = {
     CREATE: "CREATE",

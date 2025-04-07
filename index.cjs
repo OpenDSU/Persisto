@@ -1,8 +1,8 @@
 
 
-let getSystemAudit = require('./src/audit/SystemAudit').getSystemAudit
-let initialisePersisto = require('./src/persistence/Persisto').initialisePersisto
-let getAutoSaverPersistence = require('./src/persistence/ObjectsAutoSaver').getAutoSaverPersistence
+let getSystemAudit = require('./src/audit/SystemAudit.cjs').getSystemAudit
+let initialisePersisto = require('./src/persistence/Persisto.cjs').initialisePersisto
+let getAutoSaverPersistence = require('./src/persistence/ObjectsAutoSaver.cjs').getAutoSaverPersistence
 
 module.exports = {
     getSystemAudit: getSystemAudit,

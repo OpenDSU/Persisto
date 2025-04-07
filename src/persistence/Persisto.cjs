@@ -6,7 +6,7 @@
    of these objects and the management of their properties, dynamic functions are created based on configuration.
    Only the specified fields will be allowed
  */
-const {convertToBase36Id} = require("./utils");
+const {convertToBase36Id} = require("./utils.cjs");
 
 const AUDIT_EVENTS = {
     CREATE: "CREATE",
@@ -208,7 +208,7 @@ module.exports = {
     initialisePersisto: async function (elementStorageStrategy, logger) {
         console.debug(">>>>> Initialising persisto with elementStorageStrategy", elementStorageStrategy, "and logger", logger);
         let instance = new Persisto(elementStorageStrategy, logger);
-        let assetsMixin = require("./AssetsMixin.js").getAssetsMixin(elementStorageStrategy, logger);
+        let assetsMixin = require("./AssetsMixin.cjs").getAssetsMixin(elementStorageStrategy, logger);
         let alreadyAdded = {"configureAssets": true};
         instance.configureAssets = async function (config) {
             try{
