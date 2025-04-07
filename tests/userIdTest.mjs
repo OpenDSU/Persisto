@@ -1,4 +1,4 @@
-import utils from "../src/persistence/utils.js";
+import utils from "../src/persistence/utils.cjs";
 import assert from 'assert';
 
 function testNumber(number, prefix) {

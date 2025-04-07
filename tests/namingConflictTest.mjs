@@ -2,7 +2,7 @@ import {} from "../clean.mjs";
 
 await $$.clean();
 
-import {initialisePersisto} from '../index.js';
+import {initialisePersisto} from '../index.cjs';
 
 let persistoInstance = await initialisePersisto();
 const sameConfig = {
@@ -60,7 +60,7 @@ let sameObject = await persistoInstance.getType1("email1");
 if(object !== sameObject){
     failedChecks.push("configureAssets conflict method overwritten");
 }
-persistoInstance.shutDown();
+await persistoInstance.shutDown();
 if(failedChecks.length === 0){
     console.log("Naming conflict test passed");
 } else {

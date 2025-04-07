@@ -2,15 +2,15 @@ import {} from "../clean.mjs";
 
 await $$.clean();
 
-import AuditPlugin from "../src/audit/AuditPlugin.js"
-import SystemAudit from "../src/audit/SystemAudit.js"
+import AuditPlugin from "../src/audit/AuditPlugin.cjs"
+import SystemAudit from "../src/audit/SystemAudit.cjs"
 import {
     checkAllHashes,
     checkHashForYear,
     checkHashForMonth,
     checkHashForDay,
     verifyFileHashChain
-} from "../src/audit/checks.js"
+} from "../src/audit/checks.cjs"
 import assert from 'assert';
 
 // Set logs directory explicitly

@@ -1,6 +1,6 @@
 import {} from "../clean.mjs";
 await $$.clean();
-import {initialisePersisto} from '../index.js';
+import {initialisePersisto} from '../index.cjs';
 
 let failedChecks = [];
 let persistoInstance = await initialisePersisto();

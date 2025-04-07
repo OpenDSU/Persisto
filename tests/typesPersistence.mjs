@@ -3,7 +3,7 @@ import {} from "../clean.mjs";
 
 await $$.clean();
 
-import {initialisePersisto} from '../index.js';
+import {initialisePersisto} from '../index.cjs';
 let checksFailed = [];
 async function typesPersistence(){
     let persistoInstance = await initialisePersisto();
