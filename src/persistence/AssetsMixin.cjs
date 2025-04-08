@@ -37,6 +37,10 @@ function AssetsMixin(smartStorage, systemAudit) {
         }
         for (let assetType in config) {
             addFunctionToSelf("create", assetType, "", getCreationFunction(assetType));
+            addFunctionToSelf("delete", assetType, "", async function (objectID) {
+                await smartStorage.deleteObject(assetType, objectID);
+                auditLog(AUDIT_EVENTS.DELETE, undefined, assetType, objectID);
+            });
             addFunctionToSelf("get", assetType, "", async function (objectID) {
                 return await smartStorage.loadObject(objectID);
             });
@@ -267,7 +271,7 @@ function AssetsMixin(smartStorage, systemAudit) {
     };
 
     this.addController = async function (objectId, newController, role) {
-        let controllers = smartStorage.getProperty(objectId, "controllers");
+        let controllers = await smartStorage.getProperty(objectId, "controllers");
         if (controllers === undefined) {
             controllers = {};
         }
