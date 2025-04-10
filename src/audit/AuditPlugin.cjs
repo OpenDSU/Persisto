@@ -1,8 +1,9 @@
 function AuditPlugin() {
     const logsFolder = process.env.LOGS_FOLDER;
+    const auditFolder = process.env.AUDIT_FOLDER;
     const flushInterval = process.env.FLUSH_INTERVAL || 1;
     const SystemAudit = require('./SystemAudit.cjs');
-    const systemAudit = SystemAudit.getSystemAudit(flushInterval, logsFolder);
+    const systemAudit = SystemAudit.getSystemAudit(flushInterval, logsFolder, auditFolder);
 
     this.getAllLogs = async () => {
         // get all audit logs and create a json file in the format 

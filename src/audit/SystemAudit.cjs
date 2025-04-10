@@ -2,7 +2,7 @@ const fs = require('fs').promises;
 const path = require('path');
 const cryptoUtils = require('./cryptoUtils.cjs');
 
-function SystemAudit(flushInterval = 1, logDir) {
+function SystemAudit(flushInterval = 1, logDir, auditDir) {
     if (!logDir) {
         if (process.env.LOGS_FOLDER === undefined) {
             console.error("LOGS_FOLDER environment variable is not set. Please set it to the path where the logs should be stored. Defaults to './logs/'");
@@ -10,7 +10,13 @@ function SystemAudit(flushInterval = 1, logDir) {
         }
         logDir = process.env.LOGS_FOLDER;
     }
-
+    if (!auditDir) {
+        if (process.env.AUDIT_FOLDER === undefined) {
+            console.error("AUDIT_FOLDER environment variable is not set. Please set it to the path where the audit logs should be stored. Defaults to './audit/'");
+            process.env.AUDIT_FOLDER = "./audit/"
+        }
+        auditDir = process.env.AUDIT_FOLDER;
+    }
     let buffer = [];
     let auditBuffer = []; // Separate buffer for audit entries
     let usersBuffer = {};
@@ -22,7 +28,7 @@ function SystemAudit(flushInterval = 1, logDir) {
     let auditTimer = null;
 
     fs.mkdir(logDir, {recursive: true}).catch(console.error);
-
+    fs.mkdir(auditDir, {recursive: true}).catch(console.error);
     // Initialize the day's audit file
     initDayAuditFile();
 
@@ -33,7 +39,7 @@ function SystemAudit(flushInterval = 1, logDir) {
 
     function getAuditLogFileName() {
         const date = new Date().toISOString().split('T')[0]; // Format YYYY-MM-DD
-        return path.join(logDir, `audit_${date}.log`);
+        return path.join(auditDir, `audit_${date}.log`);
     }
 
     function getLogFileNameForUser(userID) {
@@ -43,7 +49,7 @@ function SystemAudit(flushInterval = 1, logDir) {
     // Function to initialize a new day's audit file
     async function initDayAuditFile() {
         const today = new Date().toISOString().split('T')[0];
-        const auditFilePath = path.join(logDir, `audit_${today}.log`);
+        const auditFilePath = path.join(auditDir, `audit_${today}.log`);
         
         try {
             // Check if file exists
@@ -54,7 +60,7 @@ function SystemAudit(flushInterval = 1, logDir) {
                 const yesterday = new Date();
                 yesterday.setDate(yesterday.getDate() - 1);
                 const yesterdayStr = yesterday.toISOString().split('T')[0];
-                const yesterdayFilePath = path.join(logDir, `audit_${yesterdayStr}.log`);
+                const yesterdayFilePath = path.join(auditDir, `audit_${yesterdayStr}.log`);
                 
                 // Check if yesterday's file exists and get its hash
                 let previousFileHash = '';
@@ -152,8 +158,7 @@ function SystemAudit(flushInterval = 1, logDir) {
         return await cryptoUtils.sha256Base64(prevHash + line);
     }
     
-    // Helper method used by both audit and log
-    async function prepareLogEntry(forUser, auditType, details, isAudit = false) {
+    async function prepareAuditEntry(auditType, details) {
         const timestamp = makeCSVCompliant(new Date().toISOString());
         auditType = makeCSVCompliant(auditType);
         
@@ -161,37 +166,21 @@ function SystemAudit(flushInterval = 1, logDir) {
             ? makeCSVCompliant(details.join(" ")) 
             : makeCSVCompliant(details);
         
-        let entryContent;
-        if (isAudit) {
-            entryContent = `[${timestamp}]; ${auditType.trim()}; ${formattedDetails.trim()};`;
-            
-            const currentLineHash = await calculateHash(entryContent);
-            const lineHash = await generateLineHash(currentLineHash, previousLineHash);
-            entryContent = `${lineHash}; [${timestamp}]; ${auditType.trim()}; ${formattedDetails.trim()};`;
-            previousLineHash = lineHash;
-            
-            return {
-                timestamp,
-                entryContent
-            };
-        } else {
-            if (auditType) {
-                throw new Error("Audit type is not supported for log entries");
-            }
-            forUser = makeCSVCompliant(forUser);
-            entryContent = `[${timestamp}]; ${forUser.trim()}; ${formattedDetails.trim()};`;
-
-            return {
-                timestamp,
-                entryContent,
-                userEntry: `[${timestamp}]; ${formattedDetails.trim()};`
-            };
-        }
+        let entryContent = `[${timestamp}]; ${auditType.trim()}; ${formattedDetails.trim()};`;
+        const currentLineHash = await calculateHash(entryContent);
+        const lineHash = await generateLineHash(currentLineHash, previousLineHash);
+        entryContent = `${lineHash}; [${timestamp}]; ${auditType.trim()}; ${formattedDetails.trim()};`;
+        previousLineHash = lineHash;
+        
+        return {
+            timestamp,
+            entryContent
+        };
     }
 
     this.audit = async function (auditType, details) {
         checkAndUpdateDay();
-        const entry = prepareLogEntry(null, auditType, details, true);
+        const entry = await prepareAuditEntry(auditType, details);
         auditBuffer.push(entry.entryContent);
         
         if (!auditTimer) {
@@ -199,8 +188,21 @@ function SystemAudit(flushInterval = 1, logDir) {
         }
     }
 
-    this.log = function (forUser, auditType, details) {
-        const entry = prepareLogEntry(forUser, auditType, details, false);
+    this.log = function (forUser, details) {
+        if (arguments.length > 2) {
+            throw new Error("log() only takes two arguments: forUser and details");
+        }
+        forUser = makeCSVCompliant(forUser);
+        const timestamp = makeCSVCompliant(new Date().toISOString());
+        const formattedDetails = Array.isArray(details)
+            ? makeCSVCompliant(details.join(" "))
+            : makeCSVCompliant(details);
+        const entryContent = `[${timestamp}]; ${forUser.trim()}; ${formattedDetails.trim()};`;
+        const entry = {
+            timestamp,
+            entryContent,
+            userEntry: `[${timestamp}]; ${formattedDetails.trim()};`
+        };
         
         buffer.push(entry.entryContent);
         usersBuffer[forUser] = usersBuffer[forUser] || [];
@@ -307,7 +309,7 @@ function SystemAudit(flushInterval = 1, logDir) {
                             typeof date === 'string' ? date : 
                             date.toISOString().split('T')[0];
                             
-            const auditFileName = path.join(logDir, `audit_${dateStr}.log`);
+            const auditFileName = path.join(auditDir, `audit_${dateStr}.log`);
             
             return await fs.readFile(auditFileName, 'utf8');
         } catch (error) {
@@ -320,14 +322,14 @@ function SystemAudit(flushInterval = 1, logDir) {
     this.listAuditFiles = async function () {
         try {
             await this.flush();
-            const files = await fs.readdir(logDir);
+            const files = await fs.readdir(auditDir);
             
             // Filter and process only audit log files
             const auditFiles = [];
             for (const file of files) {
                 if (file.startsWith('audit_') && file.endsWith('.log')) {
                     const dateStr = file.replace('audit_', '').replace('.log', '');
-                    const filePath = path.join(logDir, file);
+                    const filePath = path.join(auditDir, file);
                     
                     try {
                         const content = await fs.readFile(filePath, 'utf8');
@@ -372,8 +374,8 @@ function SystemAudit(flushInterval = 1, logDir) {
 }
 
 module.exports = {
-    getSystemAudit: function (flushInterval, logDir) {
-        return new SystemAudit(flushInterval, logDir);
+    getSystemAudit: function (flushInterval, logDir, auditDir) {
+        return new SystemAudit(flushInterval, logDir, auditDir);
     }
 }
 

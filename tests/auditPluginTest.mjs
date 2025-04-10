@@ -15,13 +15,13 @@ import assert from 'assert';
 
 // Set logs directory explicitly
 process.env.LOGS_FOLDER = "./logs/test";
-
+process.env.AUDIT_FOLDER = "./audit/test";
 // Main test function
 async function runTests() {
     try {
         // Clear the logs directory to ensure clean test
         console.log("Setting up test environment...");
-        await cleanupLogsDir();
+        await cleanupAuditDir();
 
         // Get instances
         const auditPlugin = await AuditPlugin.getInstance();
@@ -57,31 +57,31 @@ async function runTests() {
 }
 
 // Helper function to clean up logs directory
-async function cleanupLogsDir() {
+async function cleanupAuditDir() {
     try {
         // Use a temporary test logs directory
-        process.env.LOGS_FOLDER = "./logs/test";
+        process.env.AUDIT_FOLDER = "./audit/test";
 
         // Import fs with promises
         const fs = await import('fs/promises');
         const path = await import('path');
 
         // Create directory if it doesn't exist
-        await fs.mkdir(process.env.LOGS_FOLDER, {recursive: true});
+        await fs.mkdir(process.env.AUDIT_FOLDER, {recursive: true});
 
         // Read all files in the directory
-        const files = await fs.readdir(process.env.LOGS_FOLDER);
+        const files = await fs.readdir(process.env.AUDIT_FOLDER);
 
         // Delete each file
         for (const file of files) {
             if (file.startsWith('audit_') || file.startsWith('syslog_') || file.startsWith('user-')) {
-                await fs.unlink(path.join(process.env.LOGS_FOLDER, file));
+                await fs.unlink(path.join(process.env.AUDIT_FOLDER, file));
             }
         }
 
-        console.log(`Cleaned logs directory: ${process.env.LOGS_FOLDER}`);
+        console.log(`Cleaned audit directory: ${process.env.AUDIT_FOLDER}`);
     } catch (error) {
-        console.error("Error cleaning logs directory:", error);
+        console.error("Error cleaning audit directory:", error);
     }
 }
 

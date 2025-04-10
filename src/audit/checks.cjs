@@ -21,7 +21,7 @@ const verifyEntryHash = async (entry, previousHash = '') => {
     const contentHash = await cryptoUtils.sha256Base64(entryContent);
     
     // Calculate line hash (combines content hash with previous hash)
-    const calculatedHash = crypto.createHash('sha256').update(previousHash + contentHash).digest('base64');
+    const calculatedHash = await cryptoUtils.sha256Base64(previousHash + contentHash);
     
     return {
         valid: storedHash === calculatedHash,
@@ -33,7 +33,7 @@ const verifyEntryHash = async (entry, previousHash = '') => {
 };
 
 // Helper function to verify a collection of entries
-const verifyEntryCollection = (entries) => {
+const verifyEntryCollection = async (entries) => {
     if (!entries || entries.length === 0) {
         return { valid: true, entries: [], results: [] };
     }
@@ -43,7 +43,7 @@ const verifyEntryCollection = (entries) => {
     let allValid = true;
     
     for (const entry of entries) {
-        const result = verifyEntryHash(entry, previousHash);
+        const result = await verifyEntryHash(entry, previousHash);
         if (!result.valid) {
             allValid = false;
         }
