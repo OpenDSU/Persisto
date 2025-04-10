@@ -1,6 +1,6 @@
 const fs = require('fs').promises;
 const path = require('path');
-const crypto = require('crypto');
+const cryptoUtils = require('./cryptoUtils.cjs');
 
 function SystemAudit(flushInterval = 1, logDir) {
     if (!logDir) {
@@ -61,7 +61,7 @@ function SystemAudit(flushInterval = 1, logDir) {
                 try {
                     await fs.access(yesterdayFilePath);
                     const content = await fs.readFile(yesterdayFilePath, 'utf8');
-                    previousFileHash = crypto.createHash('sha256').update(content).digest('base64');
+                    previousFileHash = cryptoUtils.sha256Base64(content);
                 } catch (err) {
                     // Yesterday's file doesn't exist, proceed with empty hash
                     console.log(`No previous day file (${yesterdayStr}) found, starting new chain.`);
@@ -74,8 +74,8 @@ function SystemAudit(flushInterval = 1, logDir) {
                 if (previousFileHash) {
                     const timestamp = new Date().toISOString();
                     const firstEntry = `PREV_FILE_HASH; ${previousFileHash}`;
-                    const contentHash = crypto.createHash('sha256').update(firstEntry).digest('base64');
-                    const entryHash = crypto.createHash('sha256').update('' + contentHash).digest('base64');
+                    const contentHash = cryptoUtils.sha256Base64(firstEntry);
+                    const entryHash = cryptoUtils.sha256Base64('' + contentHash);
                     
                     const completeEntry = `${entryHash}; [${timestamp}]; SYSTEM; ${firstEntry};`;
                     await fs.appendFile(auditFilePath, completeEntry + '\n', 'utf8');
@@ -144,16 +144,16 @@ function SystemAudit(flushInterval = 1, logDir) {
         return output;
     }
 
-    function calculateHash(data) {
-        return crypto.createHash('sha256').update(data).digest('base64');
+    async function calculateHash(data) {
+        return await cryptoUtils.sha256Base64(data);
     }
 
-    function generateLineHash(line, prevHash) {
-        return calculateHash(prevHash + line);
+    async function generateLineHash(line, prevHash) {
+        return await cryptoUtils.sha256Base64(prevHash + line);
     }
     
     // Helper method used by both audit and log
-    function prepareLogEntry(forUser, auditType, details, isAudit = false) {
+    async function prepareLogEntry(forUser, auditType, details, isAudit = false) {
         const timestamp = makeCSVCompliant(new Date().toISOString());
         auditType = makeCSVCompliant(auditType);
         
@@ -165,8 +165,8 @@ function SystemAudit(flushInterval = 1, logDir) {
         if (isAudit) {
             entryContent = `[${timestamp}]; ${auditType.trim()}; ${formattedDetails.trim()};`;
             
-            const currentLineHash = calculateHash(entryContent);
-            const lineHash = generateLineHash(currentLineHash, previousLineHash);
+            const currentLineHash = await calculateHash(entryContent);
+            const lineHash = await generateLineHash(currentLineHash, previousLineHash);
             entryContent = `${lineHash}; [${timestamp}]; ${auditType.trim()}; ${formattedDetails.trim()};`;
             previousLineHash = lineHash;
             
@@ -329,7 +329,7 @@ function SystemAudit(flushInterval = 1, logDir) {
                     try {
                         const content = await fs.readFile(filePath, 'utf8');
                         const lines = content.split('\n').filter(line => line.trim() !== '');
-                        const hash = crypto.createHash('sha256').update(content).digest('base64');
+                        const hash = await cryptoUtils.sha256Base64(content);
                         
                         auditFiles.push({
                             date: dateStr,

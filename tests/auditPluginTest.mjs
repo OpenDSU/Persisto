@@ -91,7 +91,7 @@ async function createTestData(systemAudit) {
     await systemAudit.audit("TEST", "test entry 2");
     await systemAudit.audit("SECURITY", "user login");
     await systemAudit.audit("DATA", "data modified");
-    await systemAudit.flush();
+    await systemAudit.auditFlush();
 }
 
 // Helper function to create loading strategy

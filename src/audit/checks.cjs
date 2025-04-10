@@ -1,10 +1,9 @@
 // loading strategy is a function that loads the audit logs
 // the code in checks.js will run in browser, but for testing purposes, we can use a different strategy
 // for example, we can use a function that loads the audit logs from a file
-const crypto = require('crypto');
-
+const cryptoUtils = require('./cryptoUtils.cjs');
 // Helper function to verify a single entry's hash
-const verifyEntryHash = (entry, previousHash = '') => {
+const verifyEntryHash = async (entry, previousHash = '') => {
     if (!entry || entry.trim() === '') {
         return { valid: true, entry: null };
     }
@@ -19,7 +18,7 @@ const verifyEntryHash = (entry, previousHash = '') => {
     const entryContent = parts.slice(1).join('; ');
     
     // Calculate hash for entry content
-    const contentHash = crypto.createHash('sha256').update(entryContent).digest('base64');
+    const contentHash = await cryptoUtils.sha256Base64(entryContent);
     
     // Calculate line hash (combines content hash with previous hash)
     const calculatedHash = crypto.createHash('sha256').update(previousHash + contentHash).digest('base64');
@@ -127,9 +126,7 @@ const verifyFileHashChain = async (loadingStrategy) => {
             
             if (previousDate) {
                 // Calculate the actual hash of the previous file
-                const calculatedPrevHash = crypto.createHash('sha256')
-                    .update(previousFileContent)
-                    .digest('base64');
+                const calculatedPrevHash = await cryptoUtils.sha256Base64(previousFileContent);
                 
                 fileHashResult.previousDate = previousDate;
                 fileHashResult.calculatedPrevHash = calculatedPrevHash;
