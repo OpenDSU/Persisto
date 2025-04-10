@@ -175,13 +175,16 @@ function SystemAudit(flushInterval = 1, logDir) {
                 entryContent
             };
         } else {
+            if (auditType) {
+                throw new Error("Audit type is not supported for log entries");
+            }
             forUser = makeCSVCompliant(forUser);
-            entryContent = `[${timestamp}]; ${forUser.trim()}; ${auditType.trim()}; ${formattedDetails.trim()};`;
-            
+            entryContent = `[${timestamp}]; ${forUser.trim()}; ${formattedDetails.trim()};`;
+
             return {
                 timestamp,
                 entryContent,
-                userEntry: `[${timestamp}]; ${auditType.trim()}; ${formattedDetails.trim()};`
+                userEntry: `[${timestamp}]; ${formattedDetails.trim()};`
             };
         }
     }
