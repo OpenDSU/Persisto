@@ -18,27 +18,25 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
         auditDir = process.env.AUDIT_FOLDER;
     }
     let buffer = [];
-    let auditBuffer = []; // Separate buffer for audit entries
+    let auditBuffer = [];
     let usersBuffer = {};
     let previousLineHash = '';
-    let currentDate = new Date().toISOString().split('T')[0]; // Track current date
+    let currentDate = new Date().toISOString().split('T')[0];
     
-    // Separate timer variables for logs and audit
     let logsTimer = null;
     let auditTimer = null;
 
     fs.mkdir(logDir, {recursive: true}).catch(console.error);
     fs.mkdir(auditDir, {recursive: true}).catch(console.error);
-    // Initialize the day's audit file
     initDayAuditFile();
 
     function getLogFileName() {
-        const date = new Date().toISOString().split('T')[0]; // Format YYYY-MM-DD
+        const date = new Date().toISOString().split('T')[0];
         return path.join(logDir, `syslog_${date}.log`);
     }
 
     function getAuditLogFileName() {
-        const date = new Date().toISOString().split('T')[0]; // Format YYYY-MM-DD
+        const date = new Date().toISOString().split('T')[0];
         return path.join(auditDir, `audit_${date}.log`);
     }
 
@@ -54,8 +52,6 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
         try {
             // Check if file exists
             await fs.access(auditFilePath).catch(async () => {
-                // File doesn't exist, create it
-                
                 // Calculate yesterday's date
                 const yesterday = new Date();
                 yesterday.setDate(yesterday.getDate() - 1);
@@ -233,17 +229,14 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
         // Handle audit logs
         if (auditBuffer.length !== 0) {
             const auditFileName = getAuditLogFileName();
-            const auditData = auditBuffer.join('\n') + '\n';
-            await appendFile(auditFileName, auditData);
+            // Capture the current buffer and reset it immediately to avoid data loss
+            const currentAuditBuffer = [...auditBuffer];
             auditBuffer = [];
+            const auditData = currentAuditBuffer.join('\n') + '\n';
+            await appendFile(auditFileName, auditData);
         }
 
-        // Clear audit timer
-        if (auditTimer) {
-            clearTimeout(auditTimer);
-            auditTimer = null;
-        }
-        
+        auditTimer = undefined;
         duringAuditFlush = false;
     };
 
@@ -256,26 +249,23 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
         // Handle regular logs
         if (buffer.length !== 0) {
             const fileName = getLogFileName();
-            const logData = buffer.join('\n') + '\n';
-            await appendFile(fileName, logData);
+            const currentBuffer = [...buffer];
             buffer = [];
+            const logData = currentBuffer.join('\n') + '\n';
+            await appendFile(fileName, logData);
         }
 
         // Handle user logs
-        for (const user in usersBuffer) {
+        const currentUsersBuffer = {...usersBuffer};
+        usersBuffer = {};
+        
+        for (const user in currentUsersBuffer) {
             const fileName = getLogFileNameForUser(user);
-            const logData = usersBuffer[user].join('\n') + '\n';
-            usersBuffer[user] = [];
-            delete usersBuffer[user];
+            const logData = currentUsersBuffer[user].join('\n') + '\n';
             await appendFile(fileName, logData);
         }
 
-        // Clear logs timer
-        if (logsTimer) {
-            clearTimeout(logsTimer);
-            logsTimer = null;
-        }
-        
+        logsTimer = undefined;
         duringLogFlush = false;
     };
 
