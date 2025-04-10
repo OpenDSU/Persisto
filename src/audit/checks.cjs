@@ -171,7 +171,7 @@ const checkAllHashes = async (loadingStrategy) => {
             // Process each day
             for (const day in auditLogs[year][month]) {
                 const dayData = auditLogs[year][month][day];
-                results[year][month][day] = verifyEntryCollection(dayData.entries);
+                results[year][month][day] = await verifyEntryCollection(dayData.entries);
             }
         }
     }
@@ -190,7 +190,7 @@ const checkHashForYear = async (year, loadingStrategy) => {
         // Process each day in the month
         for (const day in auditLogs[month]) {
             const dayData = auditLogs[month][day];
-            results[month][day] = verifyEntryCollection(dayData.entries);
+            results[month][day] = await verifyEntryCollection(dayData.entries);
         }
     }
     
@@ -204,7 +204,7 @@ const checkHashForMonth = async (year, month, loadingStrategy) => {
     // Process each day in the month
     for (const day in auditLogs) {
         const dayData = auditLogs[day];
-        results[day] = verifyEntryCollection(dayData.entries);
+        results[day] = await verifyEntryCollection(dayData.entries);
     }
     
     return results;
@@ -212,7 +212,7 @@ const checkHashForMonth = async (year, month, loadingStrategy) => {
 
 const checkHashForDay = async (year, month, day, loadingStrategy) => {
     const auditLog = await loadingStrategy.getAuditLogsForDay(year, month, day);
-    return verifyEntryCollection(auditLog.entries);
+    return await verifyEntryCollection(auditLog.entries);
 }
 
 module.exports = {
