@@ -71,6 +71,10 @@ function AuditPlugin() {
             return { hash: '', entries: [] };
         }
     }
+
+    this.getLogsDates = async () => {
+        return  await systemAudit.listAuditDates();
+    }
 }
 
 module.exports = {

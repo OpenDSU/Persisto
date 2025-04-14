@@ -1,6 +1,6 @@
 const fs = require('fs').promises;
 const path = require('path');
-const cryptoUtils = require('./cryptoUtils.cjs');
+const cryptoUtils = require('./cryptoUtils.js');
 
 function SystemAudit(flushInterval = 1, logDir, auditDir) {
     if (!logDir) {
@@ -22,7 +22,7 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
     let usersBuffer = {};
     let previousLineHash = '';
     let currentDate = new Date().toISOString().split('T')[0];
-    
+
     let logsTimer = null;
     let auditTimer = null;
 
@@ -178,7 +178,7 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
         checkAndUpdateDay();
         const entry = await prepareAuditEntry(auditType, details);
         auditBuffer.push(entry.entryContent);
-        
+
         if (!auditTimer) {
             auditTimer = setTimeout(() => this.auditFlush(), flushInterval);
         }
@@ -199,7 +199,7 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
             entryContent,
             userEntry: `[${timestamp}]; ${formattedDetails.trim()};`
         };
-        
+
         buffer.push(entry.entryContent);
         usersBuffer[forUser] = usersBuffer[forUser] || [];
         usersBuffer[forUser].push(entry.userEntry);
@@ -225,7 +225,7 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
             return;
         }
         duringAuditFlush = true;
-        
+
         // Handle audit logs
         if (auditBuffer.length !== 0) {
             const auditFileName = getAuditLogFileName();
@@ -245,7 +245,7 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
             return;
         }
         duringLogFlush = true;
-        
+
         // Handle regular logs
         if (buffer.length !== 0) {
             const fileName = getLogFileName();
@@ -258,7 +258,7 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
         // Handle user logs
         const currentUsersBuffer = {...usersBuffer};
         usersBuffer = {};
-        
+
         for (const user in currentUsersBuffer) {
             const fileName = getLogFileNameForUser(user);
             const logData = currentUsersBuffer[user].join('\n') + '\n';
@@ -293,14 +293,14 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
             } else {
                 await this.auditFlush();
             }
-            
+
             const defaultDate = new Date().toISOString().split('T')[0];
             const dateStr = !date ? defaultDate :
-                            typeof date === 'string' ? date : 
-                            date.toISOString().split('T')[0];
-                            
+                typeof date === 'string' ? date :
+                    date.toISOString().split('T')[0];
+
             const auditFileName = path.join(auditDir, `audit_${dateStr}.log`);
-            
+
             return await fs.readFile(auditFileName, 'utf8');
         } catch (error) {
             console.error(`Error reading audit file for date ${date}:`, error);
@@ -313,19 +313,19 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
         try {
             await this.flush();
             const files = await fs.readdir(auditDir);
-            
+
             // Filter and process only audit log files
             const auditFiles = [];
             for (const file of files) {
                 if (file.startsWith('audit_') && file.endsWith('.log')) {
                     const dateStr = file.replace('audit_', '').replace('.log', '');
                     const filePath = path.join(auditDir, file);
-                    
+
                     try {
                         const content = await fs.readFile(filePath, 'utf8');
                         const lines = content.split('\n').filter(line => line.trim() !== '');
                         const hash = await cryptoUtils.sha256Base64(content);
-                        
+
                         auditFiles.push({
                             date: dateStr,
                             hash: hash,
@@ -343,7 +343,7 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
                     }
                 }
             }
-            
+
             // Sort by date (newest first)
             return auditFiles.sort((a, b) => b.date.localeCompare(a.date));
         } catch (error) {
@@ -352,11 +352,34 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
         }
     }
 
+    this.listAuditDates = async function () {
+        try {
+            await this.flush();
+            const files = await fs.readdir(auditDir);
+            const result = {};
+            for (const file of files) {
+                if (file.startsWith('audit_') && file.endsWith('.log')) {
+                    const dateStr = file.replace('audit_', '').replace('.log', '');
+                    const [year, month, day] = dateStr.split('-');
+                    if (!result[year]) result[year] = [];
+                    if (!result[year].find((item) => item === month)) {
+                        result[year].push(month);
+                    }
+
+                }
+            }
+            return result;
+        } catch (error) {
+            console.error('Error listing audit dates:', error);
+            return [];
+        }
+    }
+
     process.on('exit', async () => {
         await this.flush();
         await this.auditFlush();
     });
-    
+
     process.on('SIGINT', async () => {
         await this.flush();
         await this.auditFlush();

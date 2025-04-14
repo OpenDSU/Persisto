@@ -1,7 +1,7 @@
 // loading strategy is a function that loads the audit logs
 // the code in checks.js will run in browser, but for testing purposes, we can use a different strategy
 // for example, we can use a function that loads the audit logs from a file
-const cryptoUtils = require('./cryptoUtils.cjs');
+const cryptoUtils = require('./cryptoUtils.js');
 // Helper function to verify a single entry's hash
 const verifyEntryHash = async (entry, previousHash = '') => {
     if (!entry || entry.trim() === '') {

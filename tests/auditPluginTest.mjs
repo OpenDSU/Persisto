@@ -10,7 +10,7 @@ import {
     checkHashForMonth,
     checkHashForDay,
     verifyFileHashChain
-} from "../src/audit/checks.cjs"
+} from "../src/audit/checks.js"
 import assert from 'assert';
 
 // Set logs directory explicitly

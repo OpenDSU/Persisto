@@ -77,7 +77,7 @@ function AssetsMixin(smartStorage, systemAudit) {
         }
         console.debug("AUDIT", forUser, eventName, details);
 
-        systemAudit.log(forUser, eventName, details);
+        systemAudit.audit(eventName, details);
     }
 
     function addFunctionToSelf(methodCategory, selfTypeName, name, func) {

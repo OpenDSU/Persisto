@@ -14,6 +14,7 @@ const AUDIT_EVENTS = {
     DELETE: "DELETE",
     CREATE_OBJECT: "CREATE_OBJECT"
 }
+
 function Persisto(smartStorage, systemLogger, config) {
     let self = this;
     self.systemLogger = systemLogger;
@@ -26,11 +27,11 @@ function Persisto(smartStorage, systemLogger, config) {
                 //console.debug("Updating object of type " + configKey + " with ID " + objectID + " with values ", JSON.stringify(values));
                 let obj = await getObjectFromIdOrKey(configKey, objectID);
                 values = await smartStorage.preventIndexUpdate(configKey, values, obj);
-                if(obj === undefined){
+                if (obj === undefined) {
                     await $$.throwError("Cannot update object of type " + configKey + " with ID " + objectID + ". Object not found");
                 }
-                for(let key in values){
-                    if(key === "id"){
+                for (let key in values) {
+                    if (key === "id") {
                         continue;
                     }
                     obj[key] = values[key];
@@ -51,14 +52,14 @@ function Persisto(smartStorage, systemLogger, config) {
                 if (objectID === undefined) {
                     await $$.throwError("Object IDs must be defined. Cannot get object of type " + configKey + " with undefined ID");
                 }
-                if(await smartStorage.objectExists(objectID)){
+                if (await smartStorage.objectExists(objectID)) {
                     return true;
                 }
                 return await smartStorage.keyExistInIndex(configKey, objectID);
             });
             addFunctionToSelf("delete", configKey, "", async function (objectID) {
                 let obj = await getObjectFromIdOrKey(configKey, objectID);
-                if(obj === undefined){
+                if (obj === undefined) {
                     await $$.throwError("Cannot delete object of type " + configKey + " with ID " + objectID + ". Object not found");
                 }
                 await smartStorage.removeFromGrouping(configKey, obj.id);
@@ -78,7 +79,7 @@ function Persisto(smartStorage, systemLogger, config) {
         }
         //console.debug("AUDIT", forUser, eventName, details);
 
-        systemLogger.log(forUser, eventName, details);
+        systemLogger.audit(eventName, details);
     }
 
     function addFunctionToSelf(methodCategory, selfTypeName, name, func) {
@@ -90,14 +91,15 @@ function Persisto(smartStorage, systemLogger, config) {
         self[funcName] = func.bind(self);
     }
 
-    function addIndexFunctionToSelf( selfTypeName, fieldName, func) {
-        let funcName = "get" + upCaseFirstLetter(selfTypeName) + "By"+upCaseFirstLetter(fieldName);
+    function addIndexFunctionToSelf(selfTypeName, fieldName, func) {
+        let funcName = "get" + upCaseFirstLetter(selfTypeName) + "By" + upCaseFirstLetter(fieldName);
         console.debug("Adding function " + funcName);
         if (self[funcName] !== undefined) {
             throw new Error("Function " + funcName + " already exists! Refusing to overwrite, change your configurations!");
         }
         self[funcName] = func.bind(self);
     }
+
     function nextObjectID(itemType) {
         let firstLetter = itemType[0].toUpperCase();
         let currentNumber = smartStorage.getNextObjectId();
@@ -109,29 +111,29 @@ function Persisto(smartStorage, systemLogger, config) {
     }
 
     async function getObjectFromIdOrKey(itemType, objectID, allowMissing = false) {
-        if(await smartStorage.objectExists(objectID)){
+        if (await smartStorage.objectExists(objectID)) {
             return await smartStorage.loadObject(objectID);
         }
         // try to treat the objectID as index value
-        if(!await smartStorage.keyExistInIndex(itemType, objectID)){
-            if(allowMissing){
+        if (!await smartStorage.keyExistInIndex(itemType, objectID)) {
+            if (allowMissing) {
                 return undefined;
             }
             await $$.throwError("Object of type " + itemType + " with ID " + objectID + " not found");
         }
-        return  await smartStorage.getObjectByField(itemType, undefined, objectID, allowMissing);
+        return await smartStorage.getObjectByField(itemType, undefined, objectID, allowMissing);
     }
 
     function getCreationFunction(itemType) {
         return async function (initialValues) {
             //console.debug("|||||||| Creating new object '" + itemType + "' with values ", JSON.stringify(initialValues));
-            if(await smartStorage.hasCreationConflicts(itemType, initialValues)){
+            if (await smartStorage.hasCreationConflicts(itemType, initialValues)) {
                 throw new Error("Creation conflicts detected! Refusing to create object of type '" + itemType + "' with values " + JSON.stringify(initialValues));
             }
             let id = nextObjectID(itemType);
             let obj = {};
-            if(initialValues !== undefined){
-                if(typeof initialValues !== "object"){
+            if (initialValues !== undefined) {
+                if (typeof initialValues !== "object") {
                     throw new Error("Initial values must be an object " + " for object of type " + itemType + " received " + typeof initialValues);
                 }
                 for (let property in initialValues) {
@@ -146,7 +148,6 @@ function Persisto(smartStorage, systemLogger, config) {
             return obj;
         }
     }
-
 
 
     this.getUserLogs = async function (userID) {
@@ -178,15 +179,15 @@ function Persisto(smartStorage, systemLogger, config) {
         });
 
         addFunctionToSelf("set",
-                        upCaseFirstLetter(fieldName),
-                  "For"+ upCaseFirstLetter(typeName),
-                    async function (objectId, value) {
-                            if(await smartStorage.hasCreationConflicts(typeName, {fieldName, value})){
-                                throw new Error("Index conflict detected! Refusing to update object of type " + typeName + " on key  " + fieldName + " and value " + value);
-                            }
-                        let obj = await getObjectFromIdOrKey(typeName, objectId);
-                        return await smartStorage.updateIndexedField(obj.id, typeName, fieldName, obj[fieldName], value);
-                    });
+            upCaseFirstLetter(fieldName),
+            "For" + upCaseFirstLetter(typeName),
+            async function (objectId, value) {
+                if (await smartStorage.hasCreationConflicts(typeName, {fieldName, value})) {
+                    throw new Error("Index conflict detected! Refusing to update object of type " + typeName + " on key  " + fieldName + " and value " + value);
+                }
+                let obj = await getObjectFromIdOrKey(typeName, objectId);
+                return await smartStorage.updateIndexedField(obj.id, typeName, fieldName, obj[fieldName], value);
+            });
         return await smartStorage.createIndex(typeName, fieldName);
     }
 
@@ -211,16 +212,16 @@ module.exports = {
         let assetsMixin = require("./AssetsMixin.cjs").getAssetsMixin(elementStorageStrategy, logger);
         let alreadyAdded = {"configureAssets": true};
         instance.configureAssets = async function (config) {
-            try{
+            try {
                 await assetsMixin.configureAssets(config);
-            } catch(e){
-               throw e;
+            } catch (e) {
+                throw e;
             }
-            for(let key in assetsMixin){
-                if(alreadyAdded[key]){
+            for (let key in assetsMixin) {
+                if (alreadyAdded[key]) {
                     continue;
                 }
-                if(instance[key]){
+                if (instance[key]) {
                     await $$.throwError(`Key ${key} already exists in persisto` + JSON.stringify(alreadyAdded));
                 }
                 console.debug(">>>>> Adding function'", key, "'to persisto instance");
