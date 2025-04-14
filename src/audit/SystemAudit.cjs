@@ -63,7 +63,7 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
                 try {
                     await fs.access(yesterdayFilePath);
                     const content = await fs.readFile(yesterdayFilePath, 'utf8');
-                    previousFileHash = cryptoUtils.sha256Base64(content);
+                    previousFileHash = await cryptoUtils.sha256Base64(content);
                 } catch (err) {
                     // Yesterday's file doesn't exist, proceed with empty hash
                     console.log(`No previous day file (${yesterdayStr}) found, starting new chain.`);
@@ -76,9 +76,9 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
                 if (previousFileHash) {
                     const timestamp = new Date().toISOString();
                     const firstEntry = `PREV_FILE_HASH; ${previousFileHash}`;
-                    const contentHash = cryptoUtils.sha256Base64(firstEntry);
-                    const entryHash = cryptoUtils.sha256Base64('' + contentHash);
-                    
+                    const contentHash = await cryptoUtils.sha256Base64(firstEntry);
+                    const entryHash = await cryptoUtils.sha256Base64('' + contentHash);
+
                     const completeEntry = `${entryHash}; [${timestamp}]; SYSTEM; ${firstEntry};`;
                     await fs.appendFile(auditFilePath, completeEntry + '\n', 'utf8');
                     
