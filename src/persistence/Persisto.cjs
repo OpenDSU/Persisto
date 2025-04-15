@@ -195,6 +195,9 @@ function Persisto(smartStorage, systemLogger, config) {
         addIndexFunctionToSelf(groupingName, fieldName, async function (value) {
             return await smartStorage.getGroupingByField(groupingName, value);
         });
+        addIndexFunctionToSelf(groupingName + "Objects", fieldName , async function (value) {
+            return await smartStorage.getGroupingObjectsByField(groupingName, value);
+        });
         return await smartStorage.createGrouping(groupingName, typeName, fieldName);
     }
 

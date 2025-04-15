@@ -389,6 +389,11 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
         return grouping.items[fieldValue];
     }
 
+    this.getGroupingObjectsByField = async function (groupingName, fieldValue) {
+        let grouping = await loadWithCache(groupingName);
+        return await Promise.all(grouping.items[fieldValue].map(id => this.loadObject(id)));
+    }
+
     async function saveAll (){
         for(let id in modified){
             delete modified[id];
