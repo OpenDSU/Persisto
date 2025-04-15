@@ -1,6 +1,6 @@
 const fs = require('fs').promises;
 const path = require('path');
-const cryptoUtils = require('./cryptoUtils.js');
+const cryptoUtils = require('./cryptoUtils.cjs');
 
 function SystemAudit(flushInterval = 1, logDir, auditDir) {
     if (!logDir) {
