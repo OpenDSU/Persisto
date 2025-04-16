@@ -11,6 +11,7 @@ await persistoInstance.configureTypes({
         userStatus:{
             email: "string",
             info: "object",
+            spaceId: "string",
         },
         space:{
             name: "string",
@@ -27,15 +28,17 @@ await persistoInstance.configureAssets( {
 
 await persistoInstance.createIndex("userStatus", "email");
 
-await persistoInstance.createGrouping("users", "userStatus", "email");
+await persistoInstance.createGrouping("users", "userStatus", "spaceId");
 
 let user = await persistoInstance.createUserStatus({
     email: "email1",
-    info: {spaces: ["space1", "space2"]}
+    info: {spaces: ["space1", "space2"]},
+    spaceId: "space1"
 });
 let user2 = await persistoInstance.createUserStatus({
     email: "email2",
-    info: {spaces: ["space3", "space1"]}
+    info: {spaces: ["space3", "space1"]},
+    spaceId: "space1"
 });
 let users = await persistoInstance.getEveryUserStatusObject();
 
@@ -43,6 +46,10 @@ if(user !== users[0] || user2 !== users[1]){
     throw new Error("getEveryUserObject assertion failed");
 }
 
+let usersGroupingObjects = await persistoInstance.getUsersObjectsBySpaceId("space1");
+if(usersGroupingObjects.length !== 2){
+    throw new Error("getUsersObjectsBySpaceID assertion failed");
+}
 let sameUser = await persistoInstance.getUserStatus("email1");
 let userIds = await persistoInstance.getEveryUserStatus();
 await persistoInstance.deleteUserStatus(user.email);
