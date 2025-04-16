@@ -348,11 +348,37 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
         let obj = await loadWithCache(objId);
         return Object.values(obj.ids);
     }
-    this.getAllObjectsData = async function (typeName) {
+    this.getAllObjectsData = async function (typeName, sortBy, start, end, descending) {
         let ids = await this.getAllObjects(typeName);
-        return await Promise.all(ids.map(id => this.loadObject(id)));
+        return await this.loadObjectsRange(ids, sortBy, start, end, descending);
     }
+    this.loadObjectsRange = async function (ids, sortBy, start, end, descending) {
+        let objects = await Promise.all(ids.map(id => this.loadObject(id)));
+        if(sortBy){
+            objects.sort((a, b) => {
+                const aVal = a[sortBy];
+                const bVal = b[sortBy];
 
+                const aInvalid = aVal === undefined || aVal === null || typeof aVal === 'object';
+                const bInvalid = bVal === undefined || bVal === null || typeof bVal === 'object';
+
+                if (aInvalid && bInvalid) return 0;
+                if (aInvalid) return 1;
+                if (bInvalid) return -1;
+
+                let result;
+
+                if (typeof aVal === 'string' && typeof bVal === 'string') {
+                    result = aVal.localeCompare(bVal); // ascending by default
+                } else {
+                    result = aVal - bVal; // assumes numeric
+                }
+
+                return descending ? -result : result;
+            });
+        }
+        return objects.slice(start, end);
+    }
     this.getObjectByField = async function (typeName, fieldName, fieldValue, allowMissing) {
         if(!fieldName){
             fieldName = _indexes[typeName];
@@ -389,12 +415,16 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
         return grouping.items[fieldValue];
     }
 
-    this.getGroupingObjectsByField = async function (groupingName, fieldValue) {
+    this.getGroupingObjectsByField = async function (groupingName, fieldValue, sortBy, start, end, descending) {
         let grouping = await loadWithCache(groupingName);
-        return await Promise.all(grouping.items[fieldValue].map(id => this.loadObject(id)));
+        let ids = grouping.items[fieldValue];
+        if(!ids){
+            return [];
+        }
+        return await this.loadObjectsRange(ids, sortBy, start, end, descending);
     }
 
-    async function saveAll (){
+    async function saveAll(){
         for(let id in modified){
             delete modified[id];
             await storageStrategy.storeObject(id, cache[id]);

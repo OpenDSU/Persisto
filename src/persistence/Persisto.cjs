@@ -174,8 +174,8 @@ function Persisto(smartStorage, systemLogger, config) {
         addFunctionToSelf("getEvery", typeName, "", async function () {
             return await smartStorage.getAllObjects(typeName);
         });
-        addFunctionToSelf("getEvery", typeName, "Object", async function () {
-            return await smartStorage.getAllObjectsData(typeName);
+        addFunctionToSelf("getEvery", typeName, "Object", async function (sortBy, start = 0, end, descending = false) {
+            return await smartStorage.getAllObjectsData(typeName, sortBy, start, end, descending);
         });
 
         addFunctionToSelf("set",
@@ -195,8 +195,8 @@ function Persisto(smartStorage, systemLogger, config) {
         addIndexFunctionToSelf(groupingName, fieldName, async function (value) {
             return await smartStorage.getGroupingByField(groupingName, value);
         });
-        addIndexFunctionToSelf(groupingName + "Objects", fieldName , async function (value) {
-            return await smartStorage.getGroupingObjectsByField(groupingName, value);
+        addIndexFunctionToSelf(groupingName + "Objects", fieldName , async function (value, sortBy, start = 0, end, descending = false) {
+            return await smartStorage.getGroupingObjectsByField(groupingName, value, sortBy, start, end, descending);
         });
         return await smartStorage.createGrouping(groupingName, typeName, fieldName);
     }
