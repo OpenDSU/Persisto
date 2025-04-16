@@ -6,32 +6,6 @@ if(typeof globalThis.$$ === "undefined"){
     globalThis.$$ = {};
 }
 
-if(typeof globalThis.$$.throwError === "undefined"){
-    async function throwError(error, ...args) {
-        if(typeof error === "string"){
-            let errorText = error + " " + args.join(" ");
-            throw Error(errorText);
-        }
-        throw error;
-    }
-
-     function throwErrorSync(error, ...args) {
-        if(typeof error === "string"){
-            error = new Error(error + " " + args.join(" "));
-        }
-        let errStr = args.join(" ");
-        //console.debug("Throwing err:", error, errStr);
-        throw error;
-    }
-
-    if(typeof globalThis.$$ === "undefined"){
-        globalThis.$$ = {
-        }
-    }
-    $$.throwError = throwError;
-    $$.throwErrorSync = throwErrorSync;
-}
-
 if (typeof globalThis.$$.registerPlugin === "undefined") {
     async function registerPlugin(pluginName, path){
         let plug = await import(path);
