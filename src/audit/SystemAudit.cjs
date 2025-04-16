@@ -185,9 +185,9 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
     }
 
     this.log = function (forUser, details) {
-        if (arguments.length > 2) {
-            throw new Error("log() only takes two arguments: forUser and details");
-        }
+        // if (arguments.length > 2) {
+        //     throw new Error("log() only takes two arguments: forUser and details");
+        // }
         forUser = makeCSVCompliant(forUser);
         const timestamp = makeCSVCompliant(new Date().toISOString());
         const formattedDetails = Array.isArray(details)
