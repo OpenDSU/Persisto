@@ -157,7 +157,7 @@ function AssetsMixin(smartStorage, systemAudit) {
             await $$.throwError(new Error("Initial minting already done!"), "Failing to mint " + amount + " points", "Initial minting already done!");
         }
 
-        let availableBalance = this.getBalance("system");
+        let availableBalance = await this.getBalance("system");
         if (availableBalance === undefined || isNaN(availableBalance)) {
             availableBalance = 0;
         }
