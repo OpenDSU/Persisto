@@ -74,7 +74,10 @@ function AssetsMixin(smartStorage, systemAudit) {
         let details = args.concat(" ");
         if (forUser === undefined) {
             forUser = "system";
+        } else {
+            systemAudit.log(forUser, details);
         }
+
         console.debug("AUDIT", forUser, eventName, details);
 
         systemAudit.audit(eventName, details);

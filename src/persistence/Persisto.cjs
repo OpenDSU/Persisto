@@ -76,6 +76,8 @@ function Persisto(smartStorage, systemLogger, config) {
         let details = args.concat(" ");
         if (forUser === undefined) {
             forUser = "system";
+        }else {
+            systemLogger.log(forUser, details);
         }
         //console.debug("AUDIT", forUser, eventName, details);
 
