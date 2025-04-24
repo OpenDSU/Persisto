@@ -242,6 +242,11 @@ function AssetsMixin(smartStorage, systemAudit) {
             await $$.throwError(new Error("Transfer rejected"), "Failing to transfer " + amount + " points", " having only " + fromObj.availableBalance + " from " + fromId + " to " + toID);
         }
         fromObj.availableBalance -= amount;
+
+        if (toObj.availableBalance === undefined || isNaN(toObj.availableBalance)) {
+            toObj.availableBalance = 0;
+        }
+
         toObj.availableBalance += amount;
         await smartStorage.updateProperty(fromId, "availableBalance", fromObj.availableBalance);
         await smartStorage.updateProperty(toID, "availableBalance", toObj.availableBalance);
