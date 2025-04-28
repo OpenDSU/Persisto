@@ -19,7 +19,6 @@ function Persisto(smartStorage, systemLogger, config) {
     let self = this;
     self.systemLogger = systemLogger;
 
-
     self.configureTypes = function (config) {
         for (let configKey in config) {
             addFunctionToSelf("create", configKey, "", getCreationFunction(configKey));
@@ -57,6 +56,7 @@ function Persisto(smartStorage, systemLogger, config) {
                 }
                 return await smartStorage.keyExistInIndex(configKey, objectID);
             });
+
             addFunctionToSelf("delete", configKey, "", async function (objectID) {
                 let obj = await getObjectFromIdOrKey(configKey, objectID);
                 if (obj === undefined) {
@@ -64,25 +64,12 @@ function Persisto(smartStorage, systemLogger, config) {
                 }
                 await smartStorage.removeFromGrouping(configKey, obj.id);
                 await smartStorage.deleteObject(configKey, obj.id);
-                auditLog(AUDIT_EVENTS.DELETE, undefined, configKey, obj.id);
+                await systemLogger.smartLog(AUDIT_EVENTS.DELETE, {configKey, objectID})
             })
         }
     }
 
     const upCaseFirstLetter = name => name.replace(/^./, name[0].toUpperCase());
-
-
-    function auditLog(eventName, forUser, ...args) {
-        let details = args.concat(" ");
-        if (forUser === undefined) {
-            forUser = "system";
-        }else {
-            systemLogger.log(forUser, details);
-        }
-        //console.debug("AUDIT", forUser, eventName, details);
-
-        systemLogger.audit(eventName, details);
-    }
 
     function addFunctionToSelf(methodCategory, selfTypeName, name, func) {
         let funcName = methodCategory + upCaseFirstLetter(selfTypeName) + (name !== "" ? upCaseFirstLetter(name) : "");
@@ -144,7 +131,7 @@ function Persisto(smartStorage, systemLogger, config) {
             }
             //console.debug(">>>> Created object of type " + itemType + " with id " + id, JSON.stringify(obj));
             obj = await smartStorage.createObject(id, obj);
-            auditLog(AUDIT_EVENTS.CREATE_OBJECT, undefined, itemType, id, JSON.stringify(obj));
+            await systemLogger.smartLog(AUDIT_EVENTS.CREATE_OBJECT, {itemType, id})
             await smartStorage.updateIndexedField(obj.id, itemType, undefined, undefined, undefined);
             await smartStorage.updateGrouping(itemType, obj.id);
             return obj;
@@ -156,16 +143,13 @@ function Persisto(smartStorage, systemLogger, config) {
         return await systemLogger.getUserLogs(userID);
     }
 
-
     this.shutDown = async function () {
         return await smartStorage.shutDown();
     }
 
-
     this.forceSave = async function () {
         return await smartStorage.forceSave();
     }
-
 
     this.createIndex = async function (typeName, fieldName) {
         addIndexFunctionToSelf(typeName, fieldName, async function (value) {
@@ -197,7 +181,7 @@ function Persisto(smartStorage, systemLogger, config) {
         addIndexFunctionToSelf(groupingName, fieldName, async function (value) {
             return await smartStorage.getGroupingByField(groupingName, value);
         });
-        addIndexFunctionToSelf(groupingName + "Objects", fieldName , async function (value, sortBy, start = 0, end, descending = false) {
+        addIndexFunctionToSelf(groupingName + "Objects", fieldName, async function (value, sortBy, start = 0, end, descending = false) {
             return await smartStorage.getGroupingObjectsByField(groupingName, value, sortBy, start, end, descending);
         });
         return await smartStorage.createGrouping(groupingName, typeName, fieldName);

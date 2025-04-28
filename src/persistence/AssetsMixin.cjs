@@ -4,23 +4,8 @@
 
  */
 const {transformToAccountID, MathMoney} = require("./utils.cjs");
+const AUDIT_EVENTS = require("../audit/AuditEvents.js");
 
-const AUDIT_EVENTS = {
-    CREATE: "CREATE",
-    UPDATE: "UPDATE",
-    DELETE: "DELETE",
-    TRANSFER_AVAILABLE_FROM: "TRANSFER_AVAILABLE_FROM",
-    TRANSFER_AVAILABLE_TO: "TRANSFER_AVAILABLE_TO",
-    TRANSFER_LOCKED_FROM: "TRANSFER_LOCKED",
-    TRANSFER_LOCKED_TO: "TRANSFER_LOCKED",
-    LOCK: "LOCK",
-    UNLOCK: "UNLOCK",
-    MINT: "MINT",
-    REWARD: "REWARD",
-    CONFISCATE_LOCKED: "CONFISCATE_LOCKED",
-    CREATE_OBJECT: "CREATE_OBJECT",
-    LOGIN: "LOGIN",
-}
 
 function AssetsMixin(smartStorage, systemAudit) {
     console.debug(">>>>> Start initialisation of AssetsMixin");
@@ -39,8 +24,9 @@ function AssetsMixin(smartStorage, systemAudit) {
             addFunctionToSelf("create", assetType, "", getCreationFunction(assetType));
             addFunctionToSelf("delete", assetType, "", async function (objectID) {
                 await smartStorage.deleteObject(assetType, objectID);
-                auditLog(AUDIT_EVENTS.DELETE, undefined, assetType, objectID);
+                await systemAudit.smartLog(AUDIT_EVENTS.DELETE, {assetType, objectID})
             });
+
             addFunctionToSelf("get", assetType, "", async function (objectID) {
                 return await smartStorage.loadObject(objectID);
             });
@@ -68,20 +54,6 @@ function AssetsMixin(smartStorage, systemAudit) {
     }
 
     const upCaseFirstLetter = name => name.replace(/^./, name[0].toUpperCase());
-
-
-    function auditLog(eventName, forUser, ...args) {
-        let details = args.concat(" ");
-        if (forUser === undefined) {
-            forUser = "system";
-        } else {
-            systemAudit.log(forUser, details);
-        }
-
-        console.debug("AUDIT", forUser, eventName, details);
-
-        systemAudit.audit(eventName, details);
-    }
 
     function addFunctionToSelf(methodCategory, selfTypeName, name, func) {
         let funcName = methodCategory + upCaseFirstLetter(selfTypeName) + (name !== "" ? upCaseFirstLetter(name) : "");
@@ -115,7 +87,7 @@ function AssetsMixin(smartStorage, systemAudit) {
             }
             //console.debug(">>>> Created object of type " + itemType + " with id " + id, JSON.stringify(obj));
             obj = await smartStorage.createObject(id, obj);
-            auditLog(AUDIT_EVENTS.CREATE_OBJECT, undefined, itemType, id);
+            await systemAudit.smartLog(AUDIT_EVENTS.CREATE_OBJECT, {itemType, id})
             return obj;
         }
     }
@@ -167,7 +139,7 @@ function AssetsMixin(smartStorage, systemAudit) {
         availableBalance += amount;
         await smartStorage.updateProperty("system", "availableBalance", availableBalance);
         await smartStorage.updateProperty("system", "initialMintingDone", true);
-        auditLog(AUDIT_EVENTS.MINT, "system", amount, "Initial minting");
+        await systemAudit.smartLog(AUDIT_EVENTS.MINT, {amount, reason: "Initial minting"})
         return true;
     }
 
@@ -196,7 +168,8 @@ function AssetsMixin(smartStorage, systemAudit) {
             "lockedBalance": obj.lockedBalance,
             "availableBalance": obj.availableBalance
         });
-        auditLog(AUDIT_EVENTS.LOCK, objectID, amount, reason);
+        await systemAudit.smartLog(AUDIT_EVENTS.LOCK, {userID: objectID, amount, reason})
+
         return true;
     }
 
@@ -213,7 +186,8 @@ function AssetsMixin(smartStorage, systemAudit) {
             "lockedBalance": obj.lockedBalance,
             "availableBalance": obj.availableBalance
         });
-        auditLog(AUDIT_EVENTS.UNLOCK, objectID, amount, reason);
+        await systemAudit.smartLog(AUDIT_EVENTS.UNLOCK, {userID: objectID, amount, reason})
+
         return true;
     }
 
@@ -221,7 +195,7 @@ function AssetsMixin(smartStorage, systemAudit) {
         amount = MathMoney.normalise(amount);
         //console.debug(">>>> Start rewarding user " + userID + " with " + amount + " points for " + reason);
         await self.transferPoints(amount, "system", userID);
-        auditLog(AUDIT_EVENTS.REWARD, userID, amount, reason);
+        await systemAudit.smartLog(AUDIT_EVENTS.REWARD, {userID, amount, reason})
         //console.debug(">>>> Rewarded user " + userID + " with " + amount + " points for " + reason);
         return true;
     }
@@ -232,17 +206,17 @@ function AssetsMixin(smartStorage, systemAudit) {
         let obj = await smartStorage.loadObject(userID);
         await self.transferLockedPoints(amount, userID, "system", reason);
         await self.unlockPoints("system", amount, reason);
-        auditLog(AUDIT_EVENTS.CONFISCATE_LOCKED, userID, amount, reason);
+        await systemAudit.smartLog(AUDIT_EVENTS.CONFISCATE_LOCKED, {userID, amount, reason})
         return true;
     }
 
 
-    this.transferPoints = async function (amount, fromId, toID, reason) {
+    this.transferPoints = async function (amount, fromID, toID, reason) {
         amount = MathMoney.normalise(amount);
-        let fromObj = await smartStorage.loadObject(fromId);
+        let fromObj = await smartStorage.loadObject(fromID);
         let toObj = await smartStorage.loadObject(toID);
         if (fromObj.availableBalance < amount) {
-            await $$.throwError(new Error("Transfer rejected"), "Failing to transfer " + amount + " points", " having only " + fromObj.availableBalance + " from " + fromId + " to " + toID);
+            await $$.throwError(new Error("Transfer rejected"), "Failing to transfer " + amount + " points", " having only " + fromObj.availableBalance + " from " + fromID + " to " + toID);
         }
         fromObj.availableBalance -= amount;
 
@@ -251,31 +225,31 @@ function AssetsMixin(smartStorage, systemAudit) {
         }
 
         toObj.availableBalance += amount;
-        await smartStorage.updateProperty(fromId, "availableBalance", fromObj.availableBalance);
+        await smartStorage.updateProperty(fromID, "availableBalance", fromObj.availableBalance);
         await smartStorage.updateProperty(toID, "availableBalance", toObj.availableBalance);
-        auditLog(AUDIT_EVENTS.TRANSFER_AVAILABLE_FROM, fromId, amount, " to " + toID, reason);
-        auditLog(AUDIT_EVENTS.TRANSFER_AVAILABLE_TO, toID, amount, "from " + fromId, reason);
+        await systemAudit.smartLog(AUDIT_EVENTS.TRANSFER_AVAILABLE, {fromID, toID, amount, reason})
         return true;
     }
 
-    this.transferLockedPoints = async function (amount, fromId, toID, reason) {
+    this.transferLockedPoints = async function (amount, fromID, toID, reason) {
         amount = MathMoney.normalise(amount);
-        let fromObj = await smartStorage.loadObject(fromId);
+        let fromObj = await smartStorage.loadObject(fromID);
         let toObj = await smartStorage.loadObject(toID);
         if (fromObj.lockedBalance < amount) {
             throw new Error("Insufficient locked points to transfer");
         }
         fromObj.lockedBalance -= amount;
         toObj.lockedBalance += amount;
-        await smartStorage.updateProperty(fromId, "lockedBalance", fromObj.lockedBalance, reason);
+        await smartStorage.updateProperty(fromID, "lockedBalance", fromObj.lockedBalance, reason);
         await smartStorage.updateProperty(toID, "lockedBalance", toObj.lockedBalance, reason);
-        auditLog(AUDIT_EVENTS.TRANSFER_LOCKED_FROM, fromId, amount, " to " + toID, reason);
-        auditLog(AUDIT_EVENTS.TRANSFER_LOCKED_TO, toID, amount, "from " + fromId, reason);
+        await systemAudit.smartLog(AUDIT_EVENTS.TRANSFER_LOCKED, {fromID, toID, amount, reason})
+
         return true;
     }
 
     this.loginEvent = function (userID, state, reason) {
-        auditLog(AUDIT_EVENTS.LOGIN, userID, state, reason);
+        // auditLog(AUDIT_EVENTS.LOGIN, userID, state, reason);
+        systemAudit.smartLog(AUDIT_EVENTS.LOGIN, {userID, state, reason});
     };
 
     this.addController = async function (objectId, newController, role) {

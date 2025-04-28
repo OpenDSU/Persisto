@@ -1,6 +1,7 @@
 const fs = require('fs').promises;
 const path = require('path');
 const cryptoUtils = require('./cryptoUtils.cjs');
+const AUDIT_EVENTS = require("./AuditEvents.js");
 
 function SystemAudit(flushInterval = 1, logDir, auditDir) {
     if (!logDir) {
@@ -160,54 +161,87 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
 
         const formattedDetails = Array.isArray(details)
             ? makeCSVCompliant(details.join(" "))
-            : makeCSVCompliant(details);
+            : JSON.stringify(details);
 
-        let entryContent = `[${timestamp}]; ${auditType.trim()}; ${formattedDetails.trim()};`;
+        let entryContent = `${auditType.trim()}; ${formattedDetails.trim()};`;
         const currentLineHash = await calculateHash(entryContent);
         const lineHash = await generateLineHash(currentLineHash, previousLineHash);
-        entryContent = `${lineHash}; [${timestamp}]; ${auditType.trim()}; ${formattedDetails.trim()};`;
+        let hashEntry = `${lineHash}; [${timestamp}]; ${auditType.trim()}; ${formattedDetails.trim()};`;
         previousLineHash = lineHash;
 
         return {
             timestamp,
-            entryContent
+            entryContent,
+            hashEntry
         };
     }
 
-    this.audit = async function (auditType, details) {
+    this.auditLog = async function (auditType, details) {
         checkAndUpdateDay();
         const entry = await prepareAuditEntry(auditType, details);
-        auditBuffer.push(entry.entryContent);
+        auditBuffer.push(entry.hashEntry);
 
         if (!auditTimer) {
             auditTimer = setTimeout(() => this.auditFlush(), flushInterval);
         }
     }
 
-    this.log = function (forUser, details) {
-        // if (arguments.length > 2) {
-        //     throw new Error("log() only takes two arguments: forUser and details");
-        // }
-        forUser = makeCSVCompliant(forUser);
+    this.systemLog = function (eventType, details) {
         const timestamp = makeCSVCompliant(new Date().toISOString());
-        const formattedDetails = Array.isArray(details)
-            ? makeCSVCompliant(details.join(" "))
-            : makeCSVCompliant(details);
-        const entryContent = `[${timestamp}]; ${forUser.trim()}; ${formattedDetails.trim()};`;
-        const entry = {
-            timestamp,
-            entryContent,
-            userEntry: `[${timestamp}]; ${formattedDetails.trim()};`
-        };
+        eventType = makeCSVCompliant(eventType);
 
-        buffer.push(entry.entryContent);
-        usersBuffer[forUser] = usersBuffer[forUser] || [];
-        usersBuffer[forUser].push(entry.userEntry);
+        const entryContent = `[${timestamp}];  ${eventType.trim()}; ${JSON.stringify(details)};`;
+        buffer.push(entryContent);
 
         if (!logsTimer) {
             logsTimer = setTimeout(() => this.flush(), flushInterval);
         }
+    }
+
+    this.userLog = function (userID, log) {
+        // if (arguments.length > 2) {
+        //     throw new Error("log() only takes two arguments: forUser and details");
+        // }
+        let forUser = makeCSVCompliant(userID);
+        const timestamp = makeCSVCompliant(new Date().toISOString());
+        /*const formattedDetails = Array.isArray(details)
+            ? makeCSVCompliant(details.join(" "))
+            : makeCSVCompliant(details);*/
+
+        usersBuffer[forUser] = usersBuffer[forUser] || [];
+        usersBuffer[forUser].push(`[${timestamp}]; ${log.trim()};`);
+        // this.systemLog(forUser, log)
+        /*  if (!logsTimer) {
+              logsTimer = setTimeout(() => this.flush(), flushInterval);
+          }*/
     };
+
+    this.smartLog = async function (eventType, details) {
+        switch (eventType) {
+            case AUDIT_EVENTS.TRANSFER_AVAILABLE:
+            case AUDIT_EVENTS.TRANSFER_LOCKED:
+            case AUDIT_EVENTS.UNLOCK:
+            case AUDIT_EVENTS.MINT:
+                await this.auditLog(eventType, details);
+                this.systemLog(eventType, details);
+                break;
+            case AUDIT_EVENTS.LOCK:
+                this.userLog(details.userID, `${details.amount} points ${details.reason}`);
+                this.systemLog(eventType, details);
+                break;
+            case AUDIT_EVENTS.REWARD:
+                this.userLog(details.userID, `You have received ${details.amount} points ${details.reason}`);
+                this.systemLog(eventType, details);
+                break;
+            case AUDIT_EVENTS.CONFISCATE_LOCKED:
+                await this.auditLog(eventType, details);
+                this.userLog(details.userID, `${details.amount} points  have been confiscated because ${details.reason}`);
+                this.systemLog(eventType, details);
+                break;
+            default:
+                this.systemLog(eventType, details);
+        }
+    }
 
     async function appendFile(filePath, logData) {
         try {
