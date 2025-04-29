@@ -80,7 +80,8 @@ function SimpleFSStorageStrategy() {
             const stats = await fs.stat(filePath);
             return stats.mtimeMs;
         } catch (error) {
-            await $$.throwError(error, `Error getting timestamp for object [${id}] Error is:` + error.message);
+            //await $$.throwError(error, `Error getting timestamp for object [${id}] Error is:` + error.message);
+            return undefined;
         }
     }
 }
@@ -162,7 +163,7 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
             timestampCache[id] = await storageStrategy.getTimestamp(id);
         } else {
             let currentTimestamp = await storageStrategy.getTimestamp(id);
-            if(timestampCache[id] !== currentTimestamp){
+            if(currentTimestamp !== undefined && timestampCache[id] !== currentTimestamp){
                 cache[id] = await storageStrategy.loadObject(id, allowMissing);
                 timestampCache[id] = currentTimestamp;
             }
