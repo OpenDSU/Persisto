@@ -1,7 +1,7 @@
 const fs = require('fs').promises;
 const path = require('path');
 const cryptoUtils = require('./cryptoUtils.cjs');
-const AUDIT_EVENTS = require("./AuditEvents.js");
+const AUDIT_EVENTS = require("./AuditEvents.cjs");
 
 function SystemAudit(flushInterval = 1, logDir, auditDir) {
     if (!logDir) {

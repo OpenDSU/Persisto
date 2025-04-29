@@ -4,8 +4,7 @@
 
  */
 const {transformToAccountID, MathMoney} = require("./utils.cjs");
-const AUDIT_EVENTS = require("../audit/AuditEvents.js");
-
+const AUDIT_EVENTS = require("../audit/AuditEvents.cjs");
 
 function AssetsMixin(smartStorage, systemAudit) {
     console.debug(">>>>> Start initialisation of AssetsMixin");
