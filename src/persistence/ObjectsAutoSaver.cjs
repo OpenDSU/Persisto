@@ -74,6 +74,15 @@ function SimpleFSStorageStrategy() {
             await $$.throwError(error, `Error deleting object [${id}] Error is:` + error.message);
         }
     }
+    this.getTimestamp = async function (id) {
+        try {
+            const filePath = getFilePath(id);
+            const stats = await fs.stat(filePath);
+            return stats.mtimeMs;
+        } catch (error) {
+            await $$.throwError(error, `Error getting timestamp for object [${id}] Error is:` + error.message);
+        }
+    }
 }
 
 function makeSpecialName(typeName, fieldName){
@@ -84,7 +93,11 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
     this.storageStrategy = storageStrategy;
     let self = this;
 
+    if(!periodicInterval){
+        periodicInterval = 5000;
+    }
     let cache = {};
+    let timestampCache = {};
     let modified = {};
     let alreadyInitialized  = false;
 
@@ -146,8 +159,16 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
     async function loadWithCache(id, allowMissing= false){
         if(!cache[id]){
             cache[id] = await storageStrategy.loadObject(id, allowMissing);
+            timestampCache[id] = await storageStrategy.getTimestamp(id);
+        } else {
+            let currentTimestamp = await storageStrategy.getTimestamp(id);
+            if(timestampCache[id] !== currentTimestamp){
+                cache[id] = await storageStrategy.loadObject(id, allowMissing);
+                timestampCache[id] = currentTimestamp;
+            }
         }
-        return new Promise((resolve) => setImmediate(() => resolve(cache[id])));
+
+        return cache[id];
     }
 
     function setForSave(id){
