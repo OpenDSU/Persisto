@@ -67,7 +67,7 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
                     previousFileHash = await cryptoUtils.sha256Base64(content);
                 } catch (err) {
                     // Yesterday's file doesn't exist, proceed with empty hash
-                    console.log(`No previous day file (${yesterdayStr}) found, starting new chain.`);
+                    console.log(`No previous day file (${yesterdayStr}) found, starting new chain. Error: ${err.message}`);
                 }
 
                 // Initialize the file with the previous file hash
@@ -222,6 +222,7 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
             case AUDIT_EVENTS.TRANSFER_LOCKED:
             case AUDIT_EVENTS.UNLOCK:
             case AUDIT_EVENTS.MINT:
+            case AUDIT_EVENTS.PASSKEY_REGISTER:
                 await this.auditLog(eventType, details);
                 this.systemLog(eventType, details);
                 break;
