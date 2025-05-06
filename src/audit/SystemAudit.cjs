@@ -227,6 +227,7 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
                 this.systemLog(eventType, details);
                 break;
             case AUDIT_EVENTS.LOCK:
+                this.auditLog(eventType, details);
                 this.userLog(details.userID, `${details.amount} points ${details.reason}`);
                 this.systemLog(eventType, details);
                 break;

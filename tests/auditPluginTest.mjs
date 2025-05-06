@@ -1,4 +1,4 @@
-import {} from "../clean.mjs";
+import { } from "../clean.mjs";
 
 await $$.clean();
 
@@ -38,7 +38,7 @@ async function runTests() {
         const loadingStrategy = createLoadingStrategy(auditPlugin);
 
         // Get current date components for testing
-        const {year, month, day, dateStr} = getCurrentDateInfo();
+        const { year, month, day } = getCurrentDateInfo();
 
         // Run all tests
         await test1_getAllLogs(auditPlugin);
@@ -67,7 +67,7 @@ async function cleanupAuditDir() {
         const path = await import('path');
 
         // Create directory if it doesn't exist
-        await fs.mkdir(process.env.AUDIT_FOLDER, {recursive: true});
+        await fs.mkdir(process.env.AUDIT_FOLDER, { recursive: true });
 
         // Read all files in the directory
         const files = await fs.readdir(process.env.AUDIT_FOLDER);
@@ -87,10 +87,10 @@ async function cleanupAuditDir() {
 
 // Helper function to create test data
 async function createTestData(systemAudit) {
-    await systemAudit.audit("TEST", "test entry 1");
-    await systemAudit.audit("TEST", "test entry 2");
-    await systemAudit.audit("SECURITY", "user login");
-    await systemAudit.audit("DATA", "data modified");
+    await systemAudit.auditLog("TEST1", { "key1": "value1", "key2": "value2" });
+    await systemAudit.auditLog("TEST2", { "key1": "value1", "key2": "value2" });
+    await systemAudit.auditLog("SECURITY", { "key1": "value1", "key2": "value2" });
+    await systemAudit.auditLog("DATA", { "key1": "value1", "key2": "value2" });
 }
 
 // Helper function to create loading strategy
@@ -109,8 +109,7 @@ function getCurrentDateInfo() {
     const year = now.getFullYear().toString();
     const month = (now.getMonth() + 1).toString().padStart(2, "0");
     const day = now.getDate().toString().padStart(2, "0");
-    const dateStr = `${year}-${month}-${day}`;
-    return {year, month, day, dateStr};
+    return { year, month, day };
 }
 
 // Test 1: Get all logs
@@ -257,17 +256,17 @@ async function test6_checkCrossFileHashes(loadingStrategy) {
     const yesterdayAudit = SystemAudit.getSystemAudit();
 
     // Add some entries for yesterday
-    await yesterdayAudit.audit("TEST", "yesterday test 1");
-    await yesterdayAudit.audit("TEST", "yesterday test 2");
-    await yesterdayAudit.flush();
+    await yesterdayAudit.auditLog("TEST", "yesterday test 1");
+    await yesterdayAudit.auditLog("TEST", "yesterday test 2");
+    await yesterdayAudit.auditFlush();
 
     // Restore original Date.now
     Date.now = originalDateNow;
 
     // Force a new day file creation by creating an entry for today
     const todayAudit = SystemAudit.getSystemAudit();
-    await todayAudit.audit("TEST", "today after yesterday test");
-    await todayAudit.flush();
+    await todayAudit.auditLog("TEST", "today after yesterday test");
+    await todayAudit.auditFlush();
 
     // Wait a moment for files to be written
     await new Promise(resolve => setTimeout(resolve, 500));
@@ -334,25 +333,9 @@ async function test7_testTamperDetection(year, month, day, auditPlugin, loadingS
             "B67890; [2023-01-01T12:01:00.000Z]; TEST; Original entry 2;"
         ];
 
-        // Create a mock strategy that returns our valid entries
-        const mockStrategy = {
-            getAuditLogsForDay: async () => ({
-                hash: "mockHash",
-                entries: mockEntries
-            })
-        };
-
-        // Create tampered version where second entry is modified
+        // Create a tampered version where second entry is modified
         const tamperedEntries = [...mockEntries];
         tamperedEntries[1] = "B67890; [2023-01-01T12:01:00.000Z]; TEST; Tampered entry!;";
-
-        // Create a tampered mock strategy
-        const tamperedMockStrategy = {
-            getAuditLogsForDay: async () => ({
-                hash: "mockHash",
-                entries: tamperedEntries
-            })
-        };
 
         console.log("  Mock data demo complete - integrity verification would detect changes");
         return;
