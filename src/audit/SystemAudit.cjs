@@ -27,8 +27,8 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
     let logsTimer = null;
     let auditTimer = null;
 
-    fs.mkdir(logDir, {recursive: true}).catch(console.error);
-    fs.mkdir(auditDir, {recursive: true}).catch(console.error);
+    fs.mkdir(logDir, { recursive: true }).catch(console.error);
+    fs.mkdir(auditDir, { recursive: true }).catch(console.error);
     initDayAuditFile();
 
     function getLogFileName() {
@@ -222,8 +222,11 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
             case AUDIT_EVENTS.TRANSFER_LOCKED:
             case AUDIT_EVENTS.UNLOCK:
             case AUDIT_EVENTS.MINT:
-            case AUDIT_EVENTS.PASSKEY_REGISTER:
                 await this.auditLog(eventType, details);
+                this.systemLog(eventType, details);
+                break;
+            case AUDIT_EVENTS.PASSKEY_REGISTER:
+                this.auditLog(eventType, { email: details.email, publicKey: details.publicKey });
                 this.systemLog(eventType, details);
                 break;
             case AUDIT_EVENTS.LOCK:
@@ -292,7 +295,7 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
         }
 
         // Handle user logs
-        const currentUsersBuffer = {...usersBuffer};
+        const currentUsersBuffer = { ...usersBuffer };
         usersBuffer = {};
 
         for (const user in currentUsersBuffer) {
