@@ -226,7 +226,7 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
                 this.systemLog(eventType, details);
                 break;
             case AUDIT_EVENTS.PASSKEY_REGISTER:
-                this.auditLog(eventType, { email: details.email, publicKey: details.publicKey });
+                this.auditLog(eventType, { publicKey: details.publicKey });
                 this.systemLog(eventType, details);
                 break;
             case AUDIT_EVENTS.LOCK:
