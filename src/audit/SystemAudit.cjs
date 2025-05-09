@@ -427,9 +427,13 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
     });
 }
 
+let systemAudit = null;
 module.exports = {
     getSystemAudit: function (flushInterval, logDir, auditDir) {
-        return new SystemAudit(flushInterval, logDir, auditDir);
+        if (!systemAudit) {
+            systemAudit = new SystemAudit(flushInterval, logDir, auditDir);
+        }
+        return systemAudit;
     }
 }
 
