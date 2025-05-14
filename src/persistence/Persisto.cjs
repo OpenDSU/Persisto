@@ -6,7 +6,7 @@
    of these objects and the management of their properties, dynamic functions are created based on configuration.
    Only the specified fields will be allowed
  */
-const {convertToBase36Id} = require("./utils.cjs");
+const { convertToBase36Id } = require("./utils.cjs");
 
 const AUDIT_EVENTS = {
     CREATE: "CREATE",
@@ -14,7 +14,7 @@ const AUDIT_EVENTS = {
     DELETE: "DELETE",
     CREATE_OBJECT: "CREATE_OBJECT"
 }
-
+// eslint-disable-next-line no-unused-vars
 function Persisto(smartStorage, systemLogger, config) {
     let self = this;
     self.systemLogger = systemLogger;
@@ -64,7 +64,7 @@ function Persisto(smartStorage, systemLogger, config) {
                 }
                 await smartStorage.removeFromGrouping(configKey, obj.id);
                 await smartStorage.deleteObject(configKey, obj.id);
-                await systemLogger.smartLog(AUDIT_EVENTS.DELETE, {configKey, objectID})
+                await systemLogger.smartLog(AUDIT_EVENTS.DELETE, { configKey, objectID })
             })
         }
     }
@@ -90,7 +90,6 @@ function Persisto(smartStorage, systemLogger, config) {
     }
 
     function nextObjectID(itemType) {
-        let firstLetter = itemType[0].toUpperCase();
         let currentNumber = smartStorage.getNextObjectId();
         return convertToBase36Id(itemType, currentNumber);
     }
@@ -131,7 +130,7 @@ function Persisto(smartStorage, systemLogger, config) {
             }
             //console.debug(">>>> Created object of type " + itemType + " with id " + id, JSON.stringify(obj));
             obj = await smartStorage.createObject(id, obj);
-            await systemLogger.smartLog(AUDIT_EVENTS.CREATE_OBJECT, {itemType, id})
+            await systemLogger.smartLog(AUDIT_EVENTS.CREATE_OBJECT, { itemType, id })
             await smartStorage.updateIndexedField(obj.id, itemType, undefined, undefined, undefined);
             await smartStorage.updateGrouping(itemType, obj.id);
             return obj;
@@ -168,7 +167,7 @@ function Persisto(smartStorage, systemLogger, config) {
             upCaseFirstLetter(fieldName),
             "For" + upCaseFirstLetter(typeName),
             async function (objectId, value) {
-                if (await smartStorage.hasCreationConflicts(typeName, {fieldName, value})) {
+                if (await smartStorage.hasCreationConflicts(typeName, { fieldName, value })) {
                     throw new Error("Index conflict detected! Refusing to update object of type " + typeName + " on key  " + fieldName + " and value " + value);
                 }
                 let obj = await getObjectFromIdOrKey(typeName, objectId);
@@ -199,13 +198,9 @@ module.exports = {
         console.debug(">>>>> Initialising persisto with elementStorageStrategy", elementStorageStrategy, "and logger", logger);
         let instance = new Persisto(elementStorageStrategy, logger);
         let assetsMixin = require("./AssetsMixin.cjs").getAssetsMixin(elementStorageStrategy, logger);
-        let alreadyAdded = {"configureAssets": true};
+        let alreadyAdded = { "configureAssets": true };
         instance.configureAssets = async function (config) {
-            try {
-                await assetsMixin.configureAssets(config);
-            } catch (e) {
-                throw e;
-            }
+            await assetsMixin.configureAssets(config);
             for (let key in assetsMixin) {
                 if (alreadyAdded[key]) {
                     continue;

@@ -1,16 +1,16 @@
-import {promises as fs} from "fs";
+import { promises as fs } from "fs";
 
 let plugins = {};
 
-if(typeof globalThis.$$ === "undefined"){
+if (typeof globalThis.$$ === "undefined") {
     globalThis.$$ = {};
 }
 
 if (typeof globalThis.$$.registerPlugin === "undefined") {
-    async function registerPlugin(pluginName, path){
+    async function registerPlugin(pluginName, path) {
         let plug = await import(path);
         let pluginInstance = await plug.getInstance();
-        if(typeof pluginInstance === "undefined"){
+        if (typeof pluginInstance === "undefined") {
             await $$.throwError("Invalid plugin. getInstance() method returned undefined for plugin", pluginName);
         }
         plugins[pluginName] = pluginInstance;
@@ -18,23 +18,24 @@ if (typeof globalThis.$$.registerPlugin === "undefined") {
     $$.registerPlugin = registerPlugin;
 }
 if (typeof globalThis.$$.loadPlugin === "undefined") {
-    function loadPlugin(pluginName){
+    function loadPlugin(pluginName) {
         return plugins[pluginName];
     }
     $$.loadPlugin = loadPlugin;
 }
 
 import path from 'path';
-if(!process["env"].PERSISTENCE_FOLDER){
+if (!process["env"].PERSISTENCE_FOLDER) {
     process["env"].PERSISTENCE_FOLDER = path.join(process.cwd(), "temp_persistence");
 }
 async function createTempDir(prefix = 'temp-') {
     let root = process["env"].PERSISTENCE_FOLDER;
-    try{
+    try {
         await fs.rm(root, { recursive: true, force: true });
         await fs.mkdir(root);
     }
-    catch(err){
+    // eslint-disable-next-line no-unused-vars
+    catch (err) {
         console.log("Folder already exists");
     }
 
@@ -47,7 +48,7 @@ async function createTempDir(prefix = 'temp-') {
     }
 }
 
-$$.clean = async function(){
+$$.clean = async function () {
     process["env"].PERSISTENCE_FOLDER = await createTempDir();
 }
 

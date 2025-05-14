@@ -10,35 +10,35 @@ function convertToBase36Id(prefix, numericValue) {
         base36Result = alphanumericChars[modulus] + base36Result;
         currentValue = Math.floor(currentValue / 36);
     }
-    prefix = prefix.toUpperCase().substring(0,3);
-    return ""+ prefix+"."+base36Result;
+    prefix = prefix.toUpperCase().substring(0, 3);
+    return "" + prefix + "." + base36Result;
 }
 
 
 
 const CONST_NORMALISATION = 1000000;
-function MathMoney(){
-    this.add = function(a,b){
+function MathMoney() {
+    this.add = function (a, b) {
         return Math.round((a + b) * CONST_NORMALISATION) / CONST_NORMALISATION;
     }
 
-    this.sub = function(a,b){
+    this.sub = function (a, b) {
         return Math.round((a - b) * CONST_NORMALISATION) / CONST_NORMALISATION;
     }
 
-    this.mul = function(a,b){
+    this.mul = function (a, b) {
         return Math.round((a * b) * CONST_NORMALISATION) / CONST_NORMALISATION;
     }
 
-    this.div = function(a,b){
+    this.div = function (a, b) {
         return Math.round((a / b) * CONST_NORMALISATION) / CONST_NORMALISATION;
     }
 
-    this.normalise  = function(a){
+    this.normalise = function (a) {
         return Math.round(a * CONST_NORMALISATION) / CONST_NORMALISATION;
     }
 
-    this.roundPoints = function(points){
+    this.roundPoints = function (points) {
         return checkPoints(Math.floor(points * CONST_NORMALISATION) / CONST_NORMALISATION);
     }
 }
@@ -74,8 +74,8 @@ function convertToBase36(number) {
  * @param prefix
  * @returns {string} - The formatted string in the form UXXX-XXXX.
  */
-function transformToAccountID(number, prefix ) {
-    if(!prefix){
+function transformToAccountID(number, prefix) {
+    if (!prefix) {
         prefix = "U";
     }
     let base36Value = convertToBase36(number);
@@ -85,10 +85,10 @@ function transformToAccountID(number, prefix ) {
 }
 
 function getFullName(str, prefix) {
-    if(!str.startsWith(prefix)) {
+    if (!str.startsWith(prefix)) {
         throw new Error("Invalid user name " + str);
     }
-    if(str.length === 8) {
+    if (str.length === 8) {
         return str;
     }
     else {
@@ -99,7 +99,7 @@ function getFullName(str, prefix) {
 }
 
 function getShortName(inputString, prefix) {
-    if(inputString.length !== 8 && inputString.startsWith(prefix)) {
+    if (inputString.length !== 8 && inputString.startsWith(prefix)) {
         throw new Error("Invalid user name " + inputString);
     }
     let str = inputString.slice(2);
@@ -111,7 +111,7 @@ function getShortName(inputString, prefix) {
 
 module.exports = {
     convertToBase36Id,
-    MathMoney : new MathMoney(),
+    MathMoney: new MathMoney(),
     getFullName,
     getShortName,
     transformToAccountID
