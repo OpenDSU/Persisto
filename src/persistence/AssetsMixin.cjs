@@ -226,7 +226,7 @@ function AssetsMixin(smartStorage, systemAudit) {
         toObj.availableBalance += amount;
         await smartStorage.updateProperty(fromID, "availableBalance", fromObj.availableBalance);
         await smartStorage.updateProperty(toID, "availableBalance", toObj.availableBalance);
-        await systemAudit.smartLog(AUDIT_EVENTS.TRANSFER_AVAILABLE, { fromID, toID, amount, reason })
+        await systemAudit.smartLog(AUDIT_EVENTS.TRANSFER, {fromID, toID, amount, reason})
         return true;
     }
 

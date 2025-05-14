@@ -210,41 +210,43 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
 
         usersBuffer[forUser] = usersBuffer[forUser] || [];
         usersBuffer[forUser].push(`[${timestamp}]; ${log.trim()};`);
-        // this.systemLog(forUser, log)
-        /*  if (!logsTimer) {
-              logsTimer = setTimeout(() => this.flush(), flushInterval);
-          }*/
+        if (!logsTimer) {
+            logsTimer = setTimeout(() => this.flush(), flushInterval);
+        }
     };
 
     this.smartLog = async function (eventType, details) {
         switch (eventType) {
-            case AUDIT_EVENTS.TRANSFER_AVAILABLE:
+            case AUDIT_EVENTS.TRANSFER:
             case AUDIT_EVENTS.TRANSFER_LOCKED:
             case AUDIT_EVENTS.UNLOCK:
             case AUDIT_EVENTS.MINT:
-                await this.auditLog(eventType, details);
-                this.systemLog(eventType, details);
+                await this.auditLog(AUDIT_EVENTS[eventType], details);
+                this.systemLog(AUDIT_EVENTS[eventType], details);
                 break;
             case AUDIT_EVENTS.PASSKEY_REGISTER:
-                this.auditLog(eventType, { publicKey: details.publicKey });
-                this.systemLog(eventType, details);
+                this.auditLog(AUDIT_EVENTS[eventType], { publicKey: details.publicKey });
+                this.systemLog(AUDIT_EVENTS[eventType], details);
                 break;
             case AUDIT_EVENTS.LOCK:
-                this.auditLog(eventType, details);
+                this.auditLog(AUDIT_EVENTS[eventType], details);
                 this.userLog(details.userID, `${details.amount} points ${details.reason}`);
-                this.systemLog(eventType, details);
+                this.systemLog(AUDIT_EVENTS[eventType], details);
+                break;
+            case AUDIT_EVENTS.INVITE_SENT:
+                this.userLog(details.userID, `You have sent an invite to ${details.email}`);
                 break;
             case AUDIT_EVENTS.REWARD:
                 this.userLog(details.userID, `You have received ${details.amount} points ${details.reason}`);
-                this.systemLog(eventType, details);
+                this.systemLog(AUDIT_EVENTS[eventType], details);
                 break;
             case AUDIT_EVENTS.CONFISCATE_LOCKED:
-                await this.auditLog(eventType, details);
+                await this.auditLog(AUDIT_EVENTS[eventType], details);
                 this.userLog(details.userID, `${details.amount} points  have been confiscated because ${details.reason}`);
-                this.systemLog(eventType, details);
+                this.systemLog(AUDIT_EVENTS[eventType], details);
                 break;
             default:
-                this.systemLog(eventType, details);
+                this.systemLog(AUDIT_EVENTS[eventType], details);
         }
     }
 
