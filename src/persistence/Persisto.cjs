@@ -18,6 +18,7 @@ const AUDIT_EVENTS = {
 function Persisto(smartStorage, systemLogger, config) {
     let self = this;
     self.systemLogger = systemLogger;
+    const primaryKeyFields = {};
 
     self.configureTypes = function (config) {
         for (let configKey in config) {
@@ -89,9 +90,9 @@ function Persisto(smartStorage, systemLogger, config) {
         self[funcName] = func.bind(self);
     }
 
-    function nextObjectID(itemType) {
-        let currentNumber = smartStorage.getNextObjectId();
-        return convertToBase36Id(itemType, currentNumber);
+    function nextObjectID(itemType, primaryKeyValue = null) {
+        let currentNumber = smartStorage.getNextNumber(itemType);
+        return convertToBase36Id(itemType, currentNumber, primaryKeyValue);
     }
 
     this.getNextNumber = async function (itemType) {
@@ -118,7 +119,16 @@ function Persisto(smartStorage, systemLogger, config) {
             if (await smartStorage.hasCreationConflicts(itemType, initialValues)) {
                 throw new Error("Creation conflicts detected! Refusing to create object of type '" + itemType + "' with values " + JSON.stringify(initialValues));
             }
-            let id = nextObjectID(itemType);
+
+            let primaryKeyValue = null;
+            const primaryKeyField = primaryKeyFields[itemType];
+            if (primaryKeyField && initialValues && initialValues[primaryKeyField] !== undefined) {
+                primaryKeyValue = initialValues[primaryKeyField];
+                console.debug("Primary key field " + primaryKeyField + " found in initial values for object of type " + itemType + " with value " + primaryKeyValue);
+            }
+
+            let id = nextObjectID(itemType, primaryKeyValue);
+            console.debug("Creating object of type " + itemType + " with id " + id);
             let obj = {};
             if (initialValues !== undefined) {
                 if (typeof initialValues !== "object") {
@@ -155,6 +165,7 @@ function Persisto(smartStorage, systemLogger, config) {
             return await smartStorage.getObjectByField(typeName, fieldName, value);
         });
 
+        primaryKeyFields[typeName] = fieldName;
 
         addFunctionToSelf("getEvery", typeName, "", async function () {
             return await smartStorage.getAllObjects(typeName);
