@@ -6,14 +6,14 @@ const AUDIT_EVENTS = require("./AuditEvents.cjs");
 function SystemAudit(flushInterval = 1, logDir, auditDir) {
     if (!logDir) {
         if (process.env.LOGS_FOLDER === undefined) {
-            console.error("LOGS_FOLDER environment variable is not set. Please set it to the path where the logs should be stored. Defaults to './logs/'");
+            console.log("LOGS_FOLDER environment variable is not set. Please set it to the path where the logs should be stored. Defaults to './logs/'");
             process.env.LOGS_FOLDER = "./logs/"
         }
         logDir = process.env.LOGS_FOLDER;
     }
     if (!auditDir) {
         if (process.env.AUDIT_FOLDER === undefined) {
-            console.error("AUDIT_FOLDER environment variable is not set. Please set it to the path where the audit logs should be stored. Defaults to './audit/'");
+            console.log("AUDIT_FOLDER environment variable is not set. Please set it to the path where the audit logs should be stored. Defaults to './audit/'");
             process.env.AUDIT_FOLDER = "./audit/"
         }
         auditDir = process.env.AUDIT_FOLDER;
