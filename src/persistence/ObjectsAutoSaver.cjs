@@ -109,7 +109,7 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
         }
         alreadyInitialized = true;
         let systemObject = await storageStrategy.loadObject("system", true);
-        if (!systemObject || systemObject.currentIDNumber !== undefined) {
+        if (!systemObject || !systemObject.currentIDNumber) {
             systemObject = await self.createObject("system", { currentIDNumber: 1, currentClockTick: 0 });
         }
         cache["system"] = systemObject;

@@ -1,4 +1,4 @@
-function convertToBase36Id(prefix, numericValue, primaryKeyValue, pkLength = 4) {
+function convertToBase36Id(prefix, numericValue, primaryKeyValue, pkLength = 5) {
     const alphanumericChars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     if (numericValue === 0) return '0';
 
