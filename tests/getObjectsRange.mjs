@@ -54,5 +54,5 @@ if (descendingUsers[0].name !== "O") {
     throw new Error("descending list failed");
 }
 await persistoInstance.shutDown();
-
-
+console.log("getObjectsRange test passed");
+process.exit(0);

@@ -72,3 +72,5 @@ await persistoInstance.shutDown();
 if (failedChecks.length > 0) {
     throw new Error(failedChecks.join(", "));
 }
+console.log("smoke test passed");
+process.exit(0);

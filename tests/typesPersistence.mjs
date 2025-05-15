@@ -53,7 +53,7 @@ async function typesPersistence() {
     try {
         await persistoInstance.createUserStatus(wrongObjectConfig);
         checksFailed.push(new Error("Wrong object creation should have failed"));
-    } catch (e) {}
+    } catch (e) { }
 
     await persistoInstance.shutDown();
 }
@@ -62,9 +62,11 @@ try {
     await typesPersistence();
     if (checksFailed.length > 0) {
         console.log("Persistence test failed", checksFailed);
+        process.exit(1);
     }
 } catch (e) {
     console.error(e);
 }
 
-
+console.log("Persistence types test passed");
+process.exit(0);
