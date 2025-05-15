@@ -316,7 +316,9 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
         await this.deleteIndexedField(id, typeName);
         delete cache[id];
         delete modified[id];
-        await storageStrategy.deleteObject(id);
+        if(await storageStrategy.objectExists(id)){
+            await storageStrategy.deleteObject(id);
+        }
     }
     this.removeFromGrouping = async function (typeName, objId) {
         let obj = await loadWithCache(objId);
