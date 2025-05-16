@@ -91,7 +91,7 @@ function Persisto(smartStorage, systemLogger, config) {
     }
 
     function nextObjectID(itemType, primaryKeyValue = null) {
-        let currentNumber = smartStorage.getNextNumber(itemType);
+        let currentNumber = smartStorage.getNextObjectId();
         return convertToBase36Id(itemType, currentNumber, primaryKeyValue);
     }
 
