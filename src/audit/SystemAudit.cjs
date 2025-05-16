@@ -219,7 +219,6 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
         switch (eventType) {
             case AUDIT_EVENTS.TRANSFER:
             case AUDIT_EVENTS.TRANSFER_LOCKED:
-            case AUDIT_EVENTS.UNLOCK:
             case AUDIT_EVENTS.MINT:
                 await this.auditLog(AUDIT_EVENTS[eventType], details);
                 this.systemLog(AUDIT_EVENTS[eventType], details);
@@ -229,6 +228,7 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
                 this.systemLog(AUDIT_EVENTS[eventType], details);
                 break;
             case AUDIT_EVENTS.LOCK:
+            case AUDIT_EVENTS.UNLOCK:
                 this.auditLog(AUDIT_EVENTS[eventType], details);
                 this.userLog(details.userID, `${details.amount} points ${details.reason}`);
                 this.systemLog(AUDIT_EVENTS[eventType], details);
