@@ -13,7 +13,7 @@ function convertToBase36Id(prefix, numericValue, primaryKeyValue, pkLength = 5) 
     prefix = prefix.toUpperCase().substring(0, 3);
     let id = "" + prefix + "." + base36Result;
 
-    if (typeof primaryKeyValue !== "undefined") {
+    if (!primaryKeyValue) {
         let snippet = String(primaryKeyValue).replace(/[^a-zA-Z0-9]/g, '').substring(0, pkLength).toUpperCase();
         if (snippet.length > 0) {
             id += "." + snippet;
@@ -23,8 +23,8 @@ function convertToBase36Id(prefix, numericValue, primaryKeyValue, pkLength = 5) 
 }
 
 
-
 const CONST_NORMALISATION = 1000000;
+
 function MathMoney() {
     this.add = function (a, b) {
         return Math.round((a + b) * CONST_NORMALISATION) / CONST_NORMALISATION;
@@ -98,8 +98,7 @@ function getFullName(str, prefix) {
     }
     if (str.length === 8) {
         return str;
-    }
-    else {
+    } else {
         let str2 = str.slice(1);
         str2 = str2.padStart(7, 'X'); // pad with zeros at the end
         return prefix + str2;
@@ -114,7 +113,6 @@ function getShortName(inputString, prefix) {
     str = str.replace(/^X+/, '')
     return prefix + str;
 }
-
 
 
 module.exports = {
