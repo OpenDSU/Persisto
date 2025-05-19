@@ -13,7 +13,7 @@ function convertToBase36Id(prefix, numericValue, primaryKeyValue, pkLength = 5) 
     prefix = prefix.toUpperCase().substring(0, 3);
     let id = "" + prefix + "." + base36Result;
 
-    if (!primaryKeyValue) {
+    if (primaryKeyValue) {
         let snippet = String(primaryKeyValue).replace(/[^a-zA-Z0-9]/g, '').substring(0, pkLength).toUpperCase();
         if (snippet.length > 0) {
             id += "." + snippet;
