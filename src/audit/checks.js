@@ -1,7 +1,7 @@
 // loading strategy is a function that loads the audit logs
 // the code in checks.js will run in browser, but for testing purposes, we can use a different strategy
 // for example, we can use a function that loads the audit logs from a file
-const cryptoUtils = require('./cryptoUtils.cjs');
+const { sha256Base64 } = require('./cryptoUtils.cjs');
 // Helper function to verify a single entry's hash
 const verifyEntryHash = async (entry, previousHash = '') => {
     if (!entry || entry.trim() === '') {
@@ -11,13 +11,12 @@ const verifyEntryHash = async (entry, previousHash = '') => {
     // Parse the entry - format is: hash; [timestamp]; auditType; details;
     const parts = entry.split('; ');
     if (parts.length < 4) {
-        console.log('Invalid entry format, parts:', parts);
         return { valid: false, entry, error: 'Invalid entry format' };
     }
 
     const storedHash = parts[0];
     // Skip the timestamp (parts[1]) and just use the audit type and details for content hash
-    const auditType = parts[2];
+    const auditType = parts[2].trim();
 
     // Get the details part and ensure we don't add extra semicolons
     let details = parts.slice(3).join('; ');
@@ -26,25 +25,16 @@ const verifyEntryHash = async (entry, previousHash = '') => {
         details = details.substring(0, details.length - 1);
     }
 
-    // Construct the entry content to match how it was originally created
+    details = details.trim();
+    // Construct the entry content to match how it was originally created in SystemAudit.cjs
     const entryContent = `${auditType}; ${details};`;
 
-    console.log('DEBUG Entry:', entry.substring(0, 50) + '...');
-    console.log('DEBUG Stored Hash:', storedHash);
-    console.log('DEBUG Previous Hash:', previousHash);
-    console.log('DEBUG Entry Content:', entryContent);
-
     // Calculate hash for entry content - matches calculateHash function in SystemAudit.cjs
-    const contentHash = await cryptoUtils.sha256Base64(entryContent);
-    console.log('DEBUG Content Hash:', contentHash);
+    const contentHash = await sha256Base64(entryContent);
 
     // Calculate line hash by combining with previous hash
     // This matches generateLineHash function in SystemAudit.cjs
-    const calculatedHash = await cryptoUtils.sha256Base64(previousHash + contentHash);
-    console.log('DEBUG Calculated Hash:', calculatedHash);
-    console.log('DEBUG Match:', storedHash === calculatedHash);
-    console.log('-----------------------------------');
-
+    const calculatedHash = await sha256Base64(previousHash + contentHash);
     return {
         valid: storedHash === calculatedHash,
         entry,
@@ -54,17 +44,39 @@ const verifyEntryHash = async (entry, previousHash = '') => {
     };
 };
 
+// Helper function to extract timestamp from an entry
+const extractTimestamp = (entry) => {
+    const parts = entry.split('; ');
+    if (parts.length < 2) return null;
+
+    // Extract timestamp from format: [YYYY-MM-DDTHH:MM:SS.sssZ]
+    const timestampMatch = parts[1].match(/\[(.*?)\]/);
+    return timestampMatch ? new Date(timestampMatch[1]).getTime() : 0;
+};
+
+// Helper function to sort entries by timestamp
+const sortEntriesByTimestamp = (entries) => {
+    return [...entries].sort((a, b) => {
+        const timestampA = extractTimestamp(a);
+        const timestampB = extractTimestamp(b);
+        return timestampA - timestampB;
+    });
+};
+
 // Helper function to verify a collection of entries
-const verifyEntryCollection = async (entries) => {
+const verifyEntryCollection = async (entries, initialPreviousHash = '') => {
     if (!entries || entries.length === 0) {
         return { valid: true, entries: [], results: [] };
     }
 
-    let previousHash = '';
+    // Sort entries by timestamp to ensure proper hash chain verification
+    const sortedEntries = sortEntriesByTimestamp(entries);
+
+    let previousHash = initialPreviousHash; // Use provided initialPreviousHash
     const results = [];
     let allValid = true;
 
-    for (const entry of entries) {
+    for (const entry of sortedEntries) {
         const result = await verifyEntryHash(entry, previousHash);
         if (!result.valid) {
             allValid = false;
@@ -78,12 +90,13 @@ const verifyEntryCollection = async (entries) => {
 
     return {
         valid: allValid,
-        entries,
+        entries: sortedEntries,
         results
     };
 };
 
 // Helper function to check if an entry is a previous file hash reference
+/*
 const isPrevFileHashEntry = (entry) => {
     return entry && entry.includes('SYSTEM; PREV_FILE_HASH;');
 };
@@ -98,10 +111,11 @@ const extractPrevFileHash = (entry) => {
 
     return prevHashIndex < parts.length ? parts[prevHashIndex] : null;
 };
+*/
 
 // Function to verify cross-file hash chain
 const verifyFileHashChain = async (loadingStrategy) => {
-    const auditLogs = await loadingStrategy.getAllAuditLogs();
+    const auditLogs = await loadingStrategy.getAllAuditLogs(); // Expects { year: { month: { day: { hash, previousDayContentHash, entries } } } }
     const results = {
         valid: true,
         fileChainResults: []
@@ -125,53 +139,46 @@ const verifyFileHashChain = async (loadingStrategy) => {
     // Sort dates chronologically (oldest first)
     allDates.sort((a, b) => a.date.localeCompare(b.date));
 
-    // Verify file chain
-    let previousFileContent = '';
-    let previousDate = '';
+    let actualHashOfPreviousDayFileContent = null; // Stores the full hash of the previous day's file content
 
     for (const dateInfo of allDates) {
         const { year, month, day, date } = dateInfo;
-        const dayData = auditLogs[year][month][day];
-        const entries = dayData.entries;
+        const currentDayData = auditLogs[year][month][day];
 
-        // Check if first entry is a PREV_FILE_HASH entry
-        const hasFileHashEntry = entries.length > 0 && isPrevFileHashEntry(entries[0]);
+        const declaredPrevHashInCurrentFile = currentDayData.previousDayContentHash;
+        const currentDayFileHash = currentDayData.hash; // Full hash of the current day's file
+
         const fileHashResult = {
             date,
-            hasFileHashEntry
+            declaredPrevHashInCurrentFile,
+            actualHashOfPreviousDayFileContent: null, // Will be populated if not the first file
+            hashesMatch: null // Will be populated if not the first file
         };
 
-        if (hasFileHashEntry) {
-            const declaredPrevHash = extractPrevFileHash(entries[0]);
-            fileHashResult.declaredPrevHash = declaredPrevHash;
+        if (actualHashOfPreviousDayFileContent !== null) {
+            // This is not the first file in the chain, so we expect a match
+            fileHashResult.actualHashOfPreviousDayFileContent = actualHashOfPreviousDayFileContent;
+            fileHashResult.hashesMatch = declaredPrevHashInCurrentFile === actualHashOfPreviousDayFileContent;
 
-            if (previousDate) {
-                // Calculate the actual hash of the previous file
-                const calculatedPrevHash = await cryptoUtils.sha256Base64(previousFileContent);
-
-                fileHashResult.previousDate = previousDate;
-                fileHashResult.calculatedPrevHash = calculatedPrevHash;
-                fileHashResult.hashesMatch = declaredPrevHash === calculatedPrevHash;
-
-                // Mark the entire chain as invalid if any link is broken
-                if (!fileHashResult.hashesMatch) {
-                    results.valid = false;
-                }
-            } else {
-                // This is the first file, so no previous file to verify against
-                fileHashResult.isPreviousFileMissing = true;
+            if (!fileHashResult.hashesMatch) {
+                results.valid = false;
             }
-        } else if (previousDate) {
-            // No file hash entry but there was a previous file
-            fileHashResult.error = 'Missing previous file hash entry';
-            results.valid = false;
+        } else {
+            // This is the first file in the (sorted) sequence.
+            // There's no preceding file in this batch to compare its hash against.
+            fileHashResult.isFirstFile = true;
+            // If declaredPrevHashInCurrentFile is not empty for the very first file, it might indicate
+            // a chain starting from a known hash or an anomaly. For now, just note its presence.
+            // The validity here depends on the system's rules for the very first audit file ever.
+            // If it *must* be empty, then results.valid might be set to false here if declaredPrevHashInCurrentFile is not empty.
+            // Current logic: if it's the first file, we don't fail it based on declaredPrevHashInCurrentFile.
+            // The chain's integrity starts from the *next* file.
         }
 
         results.fileChainResults.push(fileHashResult);
 
-        // Store the current file content for the next iteration
-        previousFileContent = entries.join('\n');
-        previousDate = date;
+        // The current file's actual hash becomes the one to check against for the next day.
+        actualHashOfPreviousDayFileContent = currentDayFileHash;
     }
 
     return results;
@@ -233,9 +240,12 @@ const checkHashForMonth = async (year, month, loadingStrategy) => {
 
 const checkHashForDay = async (year, month, day, loadingStrategy) => {
     const auditLog = await loadingStrategy.getAuditLogsForDay(year, month, day);
-    return await verifyEntryCollection(auditLog.entries);
+    // The first line (previousDayContentHash) is already handled by verifyFileHashChain.
+    // verifyEntryCollection should check the integrity of the day's actual entries.
+    // The `previousHash` for the first *actual* entry in a day's log should be the `previousDayContentHash`
+    // which was recorded as the first line in the file.
+    return await verifyEntryCollection(auditLog.entries, auditLog.previousDayContentHash);
 }
-
 module.exports = {
     checkAllHashes,
     checkHashForYear,

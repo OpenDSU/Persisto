@@ -53,43 +53,44 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
         try {
             // Check if file exists
             await fs.access(auditFilePath).catch(async () => {
+                // File for today does not exist, so we create it.
                 // Calculate yesterday's date
                 const yesterday = new Date();
                 yesterday.setDate(yesterday.getDate() - 1);
                 const yesterdayStr = yesterday.toISOString().split('T')[0];
                 const yesterdayFilePath = path.join(auditDir, `audit_${yesterdayStr}.log`);
 
-                // Check if yesterday's file exists and get its hash
-                let previousFileHash = '';
+                // Check if yesterday's file exists and get its content hash
+                let previousFileContentHash = '';
                 try {
-                    await fs.access(yesterdayFilePath);
+                    await fs.access(yesterdayFilePath); // Check if yesterday's file exists
                     const content = await fs.readFile(yesterdayFilePath, 'utf8');
-                    previousFileHash = await cryptoUtils.sha256Base64(content);
+                    // If content is an empty string, cryptoUtils.sha256Base64 should still produce a valid hash.
+                    // We only proceed if content could be read.
+                    previousFileContentHash = await cryptoUtils.sha256Base64(content);
                 } catch (err) {
-                    // Yesterday's file doesn't exist, proceed with empty hash
-                    console.log(`No previous day file (${yesterdayStr}) found, starting new chain. Error: ${err.message}`);
+                    // Yesterday's file doesn't exist, or there was an error reading/hashing it.
+                    console.log(`No previous day file (${yesterdayStr}) found or error processing it. Starting new chain. Error: ${err.message}`);
+                    // previousFileContentHash remains ''
                 }
 
-                // Initialize the file with the previous file hash
-                await fs.writeFile(auditFilePath, '', 'utf8');
-
-                // Add the first entry with the previous file hash if we have one
-                if (previousFileHash) {
-                    const timestamp = new Date().toISOString();
-                    const firstEntry = `PREV_FILE_HASH; ${previousFileHash}`;
-                    const contentHash = await cryptoUtils.sha256Base64(firstEntry);
-                    const entryHash = await cryptoUtils.sha256Base64('' + contentHash);
-
-                    const completeEntry = `${entryHash}; [${timestamp}]; SYSTEM; ${firstEntry};`;
-                    await fs.appendFile(auditFilePath, completeEntry + '\n', 'utf8');
-
-                    // Set the previous line hash for subsequent entries
-                    previousLineHash = entryHash;
+                // Initialize the new day's audit file
+                if (previousFileContentHash) {
+                    // Write the hash of the previous file's content as the first line
+                    await fs.writeFile(auditFilePath, previousFileContentHash + '\n', 'utf8');
+                    // Set the previousLineHash for the first *actual* audit entry to be this hash
+                    previousLineHash = previousFileContentHash;
                 } else {
-                    // Initialize the previous line hash
+                    // No valid previous file hash (e.g., file didn't exist, was empty and hashing empty gave '', or read error),
+                    // so start the new audit file empty.
+                    await fs.writeFile(auditFilePath, '', 'utf8');
+                    // And initialize previousLineHash to empty for the first actual audit entry.
                     previousLineHash = '';
                 }
             });
+            // If fs.access(auditFilePath) succeeded, the file already exists.
+            // The current logic does not re-load previousLineHash from an existing file here.
+            // This change focuses only on new file creation as per the request.
         } catch (error) {
             console.error(`Error initializing audit file for ${today}:`, error);
         }

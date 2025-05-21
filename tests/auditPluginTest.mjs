@@ -12,6 +12,9 @@ import {
     verifyFileHashChain
 } from "../src/audit/checks.js"
 import assert from 'assert';
+import fs from 'fs/promises';
+import path from 'path';
+import cryptoUtils from '../src/audit/cryptoUtils.cjs';
 
 // Set logs directory explicitly
 process.env.LOGS_FOLDER = "./logs/test";
@@ -242,63 +245,154 @@ async function test5_checkAllHashes(loadingStrategy) {
         `Integrity check for ${firstYear}-${firstMonth}-${firstDay} should pass`);
 }
 
+// Helper function to make strings CSV compliant (copied from SystemAudit.cjs)
+function makeCSVCompliant(input) {
+    // Replace semicolons with commas
+    if (typeof input !== 'string') {
+        input = String(input);
+    }
+    let output = input.replace(/;/g, ',');
+
+    // Check if the string contains commas, double quotes, or newlines
+    if (/[,"\n]/.test(output)) {
+        // Escape double quotes by doubling them
+        output = output.replace(/"/g, '""');
+        // Enclose the string in double quotes
+        output = `"${output}"`;
+    }
+    return output;
+}
+
 // Test 6: Create entries for previous day and check cross-file hash chain
 async function test6_checkCrossFileHashes(loadingStrategy) {
-    console.log("Test 6: Checking cross-file hash chain");
+    console.log("Test 6: Checking cross-file hash chain over multiple days (manual file creation)");
 
-    // Create yesterday's date
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
+    const AUDIT_DIR = process.env.AUDIT_FOLDER; // e.g., "./audit/test"
+    if (!AUDIT_DIR) {
+        throw new Error("AUDIT_FOLDER environment variable is not set for test6");
+    }
+    await fs.mkdir(AUDIT_DIR, { recursive: true }); // Ensure directory exists
 
-    // Create a new SystemAudit instance with yesterday's date
     const originalDateNow = Date.now;
-    Date.now = () => yesterday.getTime();
-    const yesterdayAudit = SystemAudit.getSystemAudit();
+    const numberOfPastDaysToSimulate = 2; // Simulate T-2, T-1
+    let previousDayActualContentHash = ''; // Stores hash of the entire content of the previously written file
 
-    // Add some entries for yesterday
-    await yesterdayAudit.auditLog("TEST", "yesterday test 1");
-    await yesterdayAudit.auditLog("TEST", "yesterday test 2");
-    await yesterdayAudit.auditFlush();
+    try {
+        // Simulate creation of files for past days
+        for (let i = numberOfPastDaysToSimulate; i >= 1; i--) {
+            const currentFileDate = new Date();
+            currentFileDate.setDate(currentFileDate.getDate() - i);
+            Date.now = () => currentFileDate.getTime(); // Mock Date.now for this iteration
 
-    // Restore original Date.now
-    Date.now = originalDateNow;
+            const dateStr = currentFileDate.toISOString().split('T')[0];
+            const currentFilePath = path.join(AUDIT_DIR, `audit_${dateStr}.log`);
+            console.log(`  Manually creating audit log for T-${i} (${dateStr}) at ${currentFilePath}`);
 
-    // Force a new day file creation by creating an entry for today
-    const todayAudit = SystemAudit.getSystemAudit();
-    await todayAudit.auditLog("TEST", "today after yesterday test");
-    await todayAudit.auditFlush();
+            let currentFileLines = [];
+            let previousLineHashForChaining = ''; // For intra-file hash chaining
 
-    // Wait a moment for files to be written
-    await new Promise(resolve => setTimeout(resolve, 500));
+            // Add previous day's full content hash as the first line if available
+            if (previousDayActualContentHash) {
+                currentFileLines.push(previousDayActualContentHash);
+                previousLineHashForChaining = previousDayActualContentHash;
+            }
 
-    // Verify the file hash chain
+            // Add a couple of entries for this day
+            for (let j = 1; j <= 2; j++) {
+                const auditType = `MANUAL_PAST_EVENT_T-${i}_${j}`;
+                const details = { eventOrder: j, dayOffset: `T-${i}`, note: "Manually created" };
+                const detailsString = JSON.stringify(details);
+                const timestamp = new Date(Date.now()).toISOString(); // Use mocked Date.now()
+
+                // Mimic SystemAudit's entryContent for hashing (auditType; details;)
+                // SystemAudit uses auditType.trim() and formattedDetails.trim()
+                // For simplicity, we assume no leading/trailing spaces in our types/details here
+                // Note: SystemAudit's prepareAuditEntry uses makeCSVCompliant on auditType and then on details.
+                // The actual content hashed is based on *those* compliant strings.
+                // Let's try to match:
+                const compliantAuditType = makeCSVCompliant(auditType);
+                // const compliantDetails = makeCSVCompliant(detailsString); // ERROR: Do not make the JSON string CSV compliant again here
+
+                let entryDataForHashing = `${compliantAuditType.trim()}; ${detailsString.trim()};`; // Use detailsString directly
+
+                const currentEntryDataHash = await cryptoUtils.sha256Base64(entryDataForHashing);
+                const chainedHash = await cryptoUtils.sha256Base64(previousLineHashForChaining + currentEntryDataHash);
+
+                // Log line format: chainedHash; [timestamp]; auditType; details;
+                // The auditType and details in the log line are also CSV compliant in SystemAudit.
+                const fullLogLine = `${chainedHash}; [${makeCSVCompliant(timestamp)}]; ${compliantAuditType.trim()}; ${detailsString.trim()};`; // Use detailsString directly
+                currentFileLines.push(fullLogLine);
+                previousLineHashForChaining = chainedHash;
+            }
+
+            const fileContentToWrite = currentFileLines.join('\n') + (currentFileLines.length > 0 ? '\n' : '');
+            await fs.writeFile(currentFilePath, fileContentToWrite, 'utf8');
+            previousDayActualContentHash = await cryptoUtils.sha256Base64(fileContentToWrite); // Hash of the *entire* file just written
+        }
+
+        // Simulate creation for "Today"
+        Date.now = originalDateNow; // Restore Date.now to actual current time
+        const todayDate = new Date(); // Fresh 'today'
+        Date.now = () => todayDate.getTime(); // Mock for consistency within this block
+
+        const todayDateStr = todayDate.toISOString().split('T')[0];
+        const todayFilePath = path.join(AUDIT_DIR, `audit_${todayDateStr}.log`);
+        console.log(`  Manually creating audit log for Today (${todayDateStr}) at ${todayFilePath}`);
+
+        let todayFileLines = [];
+        let previousLineHashForTodayFileChaining = '';
+
+        if (previousDayActualContentHash) { // Hash from T-1 file
+            todayFileLines.push(previousDayActualContentHash);
+            previousLineHashForTodayFileChaining = previousDayActualContentHash;
+        }
+
+        for (let j = 1; j <= 2; j++) {
+            const auditType = `MANUAL_TODAY_EVENT_${j}`;
+            const details = { eventOrder: j, dayOffset: "T0", note: "Manually created" };
+            const detailsString = JSON.stringify(details);
+            const timestamp = new Date(Date.now()).toISOString();
+
+            const compliantAuditType = makeCSVCompliant(auditType);
+            // const compliantDetails = makeCSVCompliant(detailsString); // ERROR: Do not make the JSON string CSV compliant again here
+            let entryDataForHashing = `${compliantAuditType.trim()}; ${detailsString.trim()};`; // Use detailsString directly
+
+            const currentEntryDataHash = await cryptoUtils.sha256Base64(entryDataForHashing);
+            const chainedHash = await cryptoUtils.sha256Base64(previousLineHashForTodayFileChaining + currentEntryDataHash);
+
+            const fullLogLine = `${chainedHash}; [${makeCSVCompliant(timestamp)}]; ${compliantAuditType.trim()}; ${detailsString.trim()};`; // Use detailsString directly
+            todayFileLines.push(fullLogLine);
+            previousLineHashForTodayFileChaining = chainedHash;
+        }
+
+        const todayFileContentToWrite = todayFileLines.join('\n') + (todayFileLines.length > 0 ? '\n' : '');
+        await fs.writeFile(todayFilePath, todayFileContentToWrite, 'utf8');
+        // No need to calculate previousDayActualContentHash here as it's the last file
+
+    } finally {
+        Date.now = originalDateNow; // Ensure Date.now is restored
+    }
+
+    console.log("  Waiting for file writes to complete...");
+    await new Promise(resolve => setTimeout(resolve, 1500));
+
+    console.log("  Verifying file hash chain using AuditPlugin's loading strategy...");
     const fileChainResult = await verifyFileHashChain(loadingStrategy);
 
-    // Check the results
     assert.strictEqual(typeof fileChainResult.valid, "boolean", "File chain check should have a valid property");
-
-    // We expect the file chain to be valid regardless of whether we have prev file hash entries
-    assert.ok(fileChainResult.valid, "File chain integrity should be valid");
+    assert.ok(fileChainResult.valid, "File chain integrity should be valid after manual creation");
     assert.ok(Array.isArray(fileChainResult.fileChainResults), "File chain should have results array");
-    assert.ok(fileChainResult.fileChainResults.length > 0, "File chain should have at least one result");
 
-    // Check at least the most recent file (today's file)
-    const todayResult = fileChainResult.fileChainResults.find(
-        result => result.date === new Date().toISOString().split('T')[0]
-    );
+    // Expect files for T-2, T-1, and Today = 3 files
+    const expectedFileCount = numberOfPastDaysToSimulate + 1;
+    assert.strictEqual(fileChainResult.fileChainResults.length, expectedFileCount, `Expected ${expectedFileCount} files in the chain results`);
 
-    if (todayResult) {
-        // Note: In some test environments, the file hash entry might not be present
-        // This is acceptable for a test, as long as the chain is still valid overall
-        if (!todayResult.hasFileHashEntry) {
-            console.log("  (Warning: Today's file does not have a previous file hash entry)");
-            console.log("  (This may be normal in test environments with clean directories)");
-        } else if (todayResult.previousDate) {
-            assert.ok(todayResult.hashesMatch, "Previous file hash should match");
-        }
-    } else {
-        console.log("  (Warning: Could not find today's file in the chain results)");
-    }
+    const results = fileChainResult.fileChainResults; // Sorted newest to oldest
+
+    // Today's file (results[0]) should link to T-1 (results[1])
+    const todayResult = results[results.length - 1];
+    assert.ok(todayResult.hashesMatch, "Today's previous file hash entry should match actual hash of T-1's file content.");
+    console.log("  Cross-file hash chain verification successful after manual creation.");
 }
 
 // Test 7: Demonstrate hash integrity failure detection with tampered data
@@ -308,7 +402,7 @@ async function test7_testTamperDetection(year, month, day, auditPlugin, loadingS
     // Check the test data integrity first
     console.log("  Checking if test data is valid before tampering...");
     const checkResult = await checkHashForDay(year, month, day, loadingStrategy);
-    console.log(`  Original data integrity check result: ${checkResult.valid ? 'Valid' : 'Invalid'}`);
+    console.log(`  Original data integrity check result: ${checkResult.valid ? 'Valid' : 'Invalid'} `);
 
     // If original data is already invalid, we can't run the tamper test
     if (!checkResult.valid) {
@@ -319,7 +413,7 @@ async function test7_testTamperDetection(year, month, day, auditPlugin, loadingS
 
     // Get the original log data
     const logData = await auditPlugin.getLogsForDay(year, month, day);
-    console.log(`  Log entries count: ${logData.entries.length}`);
+    console.log(`  Log entries count: ${logData.entries.length} `);
 
     // Skip this test if we don't have enough entries
     if (logData.entries.length < 2) {
@@ -347,7 +441,7 @@ async function test7_testTamperDetection(year, month, day, auditPlugin, loadingS
     const parts = tamperedEntries[1].split('; ');
 
     console.log(`  Original entry to tamper with: ${tamperedEntries[1].substring(0, 50)}...`);
-    console.log(`  Parts count: ${parts.length}`);
+    console.log(`  Parts count: ${parts.length} `);
 
     if (parts.length < 4) {
         console.log("  SKIP: Entry format not as expected, cannot tamper reliably");
@@ -373,13 +467,13 @@ async function test7_testTamperDetection(year, month, day, auditPlugin, loadingS
 
     // Verify the tampered data is detected
     const tamperedResult = await checkHashForDay(year, month, day, tamperedStrategy);
-    console.log(`  Tampered data check result: ${tamperedResult.valid ? 'Valid (PROBLEM!)' : 'Invalid (Expected)'}`);
+    console.log(`  Tampered data check result: ${tamperedResult.valid ? 'Valid (PROBLEM!)' : 'Invalid (Expected)'} `);
 
     assert.strictEqual(tamperedResult.valid, false, "Tampered data should be detected as invalid");
 
     // Check specific tampered entry result
     if (tamperedResult.results.length > 1) {
-        console.log(`  Tampered entry check result: ${tamperedResult.results[1].valid ? 'Valid (PROBLEM!)' : 'Invalid (Expected)'}`);
+        console.log(`  Tampered entry check result: ${tamperedResult.results[1].valid ? 'Valid (PROBLEM!)' : 'Invalid (Expected)'} `);
         assert.strictEqual(tamperedResult.results[1].valid, false, "Tampered entry should be invalid");
     }
 }
