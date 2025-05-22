@@ -3,7 +3,7 @@
  For the creation of these objects and the management of their properties, dynamic functions are created based on configuration.
 
  */
-const { transformToAccountID, MathMoney } = require("./utils.cjs");
+const {transformToAccountID, MathMoney, getShortName} = require("./utils.cjs");
 const AUDIT_EVENTS = require("../audit/AuditEvents.cjs");
 
 function AssetsMixin(smartStorage, systemAudit) {
@@ -23,7 +23,7 @@ function AssetsMixin(smartStorage, systemAudit) {
             addFunctionToSelf("create", assetType, "", getCreationFunction(assetType));
             addFunctionToSelf("delete", assetType, "", async function (objectID) {
                 await smartStorage.deleteObject(assetType, objectID);
-                await systemAudit.smartLog(AUDIT_EVENTS.DELETE, { assetType, objectID })
+                await systemAudit.smartLog(AUDIT_EVENTS.DELETE, {assetType, objectID})
             });
 
             addFunctionToSelf("get", assetType, "", async function (objectID) {
@@ -68,13 +68,13 @@ function AssetsMixin(smartStorage, systemAudit) {
         let currentNumber = smartStorage.getNextObjectId();
         let niceId = transformToAccountID(currentNumber, firstLetter);
         //console.debug(">>>> Next object ID for type " + itemType + " is " + niceId + " with account number " + currentIdNumber);
-        return { accountNumber: currentNumber, id: niceId };
+        return {accountNumber: currentNumber, id: niceId};
     }
 
     function getCreationFunction(itemType) {
         return async function (initialValues) {
-            let { accountNumber, id } = nextObjectID(itemType);
-            let obj = { accountNumber };
+            let {accountNumber, id} = nextObjectID(itemType);
+            let obj = {accountNumber};
             for (let property in initialValues) {
                 if (!hasField(itemType, property)) {
                     await $$.throwError(new Error("Invalid property named " + property + " in initialisation values for item type " + itemType));
@@ -86,7 +86,7 @@ function AssetsMixin(smartStorage, systemAudit) {
             }
             //console.debug(">>>> Created object of type " + itemType + " with id " + id, JSON.stringify(obj));
             obj = await smartStorage.createObject(id, obj);
-            await systemAudit.smartLog(AUDIT_EVENTS.CREATE_OBJECT, { itemType, id })
+            await systemAudit.smartLog(AUDIT_EVENTS.CREATE_OBJECT, {itemType, id})
             return obj;
         }
     }
@@ -138,7 +138,7 @@ function AssetsMixin(smartStorage, systemAudit) {
         availableBalance += amount;
         await smartStorage.updateProperty("system", "availableBalance", availableBalance);
         await smartStorage.updateProperty("system", "initialMintingDone", true);
-        await systemAudit.smartLog(AUDIT_EVENTS.MINT, { amount, reason: "Initial minting" })
+        await systemAudit.smartLog(AUDIT_EVENTS.MINT, {amount, reason: "Initial minting"})
         return true;
     }
 
@@ -167,7 +167,7 @@ function AssetsMixin(smartStorage, systemAudit) {
             "lockedBalance": obj.lockedBalance,
             "availableBalance": obj.availableBalance
         });
-        await systemAudit.smartLog(AUDIT_EVENTS.LOCK, { userID: objectID, amount, reason })
+        await systemAudit.smartLog(AUDIT_EVENTS.LOCK, {userID: getShortName(objectID, objectID[0]), amount, reason})
 
         return true;
     }
@@ -185,7 +185,7 @@ function AssetsMixin(smartStorage, systemAudit) {
             "lockedBalance": obj.lockedBalance,
             "availableBalance": obj.availableBalance
         });
-        await systemAudit.smartLog(AUDIT_EVENTS.UNLOCK, { userID: objectID, amount, reason })
+        await systemAudit.smartLog(AUDIT_EVENTS.UNLOCK, {userID: getShortName(objectID, objectID[0]), amount, reason})
 
         return true;
     }
@@ -194,7 +194,7 @@ function AssetsMixin(smartStorage, systemAudit) {
         amount = MathMoney.normalise(amount);
         //console.debug(">>>> Start rewarding user " + userID + " with " + amount + " points for " + reason);
         await self.transferPoints(amount, "system", userID);
-        await systemAudit.smartLog(AUDIT_EVENTS.REWARD, { userID, amount, reason })
+        await systemAudit.smartLog(AUDIT_EVENTS.REWARD, {userID: getShortName(userID, userID[0]), amount, reason})
         //console.debug(">>>> Rewarded user " + userID + " with " + amount + " points for " + reason);
         return true;
     }
@@ -205,7 +205,11 @@ function AssetsMixin(smartStorage, systemAudit) {
         await smartStorage.loadObject(userID);
         await self.transferLockedPoints(amount, userID, "system", reason);
         await self.unlockPoints("system", amount, reason);
-        await systemAudit.smartLog(AUDIT_EVENTS.CONFISCATE_LOCKED, { userID, amount, reason })
+        await systemAudit.smartLog(AUDIT_EVENTS.CONFISCATE_LOCKED, {
+            userID: getShortName(userID, userID[0]),
+            amount,
+            reason
+        })
         return true;
     }
 
@@ -226,7 +230,12 @@ function AssetsMixin(smartStorage, systemAudit) {
         toObj.availableBalance += amount;
         await smartStorage.updateProperty(fromID, "availableBalance", fromObj.availableBalance);
         await smartStorage.updateProperty(toID, "availableBalance", toObj.availableBalance);
-        await systemAudit.smartLog(AUDIT_EVENTS.TRANSFER, {fromID, toID, amount, reason})
+        await systemAudit.smartLog(AUDIT_EVENTS.TRANSFER, {
+            fromID: fromID === "system" ? fromID : getShortName(fromID, fromID[0]),
+            toID: toID === "system" ? toID : getShortName(toID, toID[0]),
+            amount,
+            reason
+        })
         return true;
     }
 
@@ -241,14 +250,18 @@ function AssetsMixin(smartStorage, systemAudit) {
         toObj.lockedBalance += amount;
         await smartStorage.updateProperty(fromID, "lockedBalance", fromObj.lockedBalance, reason);
         await smartStorage.updateProperty(toID, "lockedBalance", toObj.lockedBalance, reason);
-        await systemAudit.smartLog(AUDIT_EVENTS.TRANSFER_LOCKED, { fromID, toID, amount, reason })
+        await systemAudit.smartLog(AUDIT_EVENTS.TRANSFER_LOCKED, {
+            fromID: fromID === "system" ? fromID : getShortName(fromID, fromID[0]),
+            toID: toID === "system" ? toID : getShortName(toID, toID[0]),
+            amount, reason
+        })
 
         return true;
     }
 
     this.loginEvent = function (userID, state, reason) {
         // auditLog(AUDIT_EVENTS.LOGIN, userID, state, reason);
-        systemAudit.smartLog(AUDIT_EVENTS.LOGIN, { userID, state, reason });
+        systemAudit.smartLog(AUDIT_EVENTS.LOGIN, {userID, state, reason});
     };
 
     this.addController = async function (objectId, newController, role) {
