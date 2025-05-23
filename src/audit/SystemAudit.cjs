@@ -2,6 +2,7 @@ const fs = require('fs').promises;
 const path = require('path');
 const cryptoUtils = require('./cryptoUtils.cjs');
 const AUDIT_EVENTS = require("./AuditEvents.cjs");
+const {getShortName} = require("../persistence/utils.cjs");
 
 function SystemAudit(flushInterval = 1, logDir, auditDir) {
     if (!logDir) {
@@ -81,9 +82,9 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
                 console.log(`[AUDIT_DEBUG] initDayAuditFile (new file for ${today}): previousLineHash reset (no yesterday hash): ${previousLineHash}`);
             }
         }
-        // If fileExists was true, previousLineHash is NOT changed by this function here.
-        // It would have been reset by checkAndUpdateDay if it was a genuinely new day,
-        // or it retains its current value (e.g. from server startup).
+            // If fileExists was true, previousLineHash is NOT changed by this function here.
+            // It would have been reset by checkAndUpdateDay if it was a genuinely new day,
+            // or it retains its current value (e.g. from server startup).
         // The existing behavior of not loading the last hash from an existing mid-day file on restart is maintained.
         else {
             console.log(`[AUDIT_DEBUG] initDayAuditFile (file for ${today} already existed): previousLineHash not changed by this function. Current value: ${previousLineHash}`);
@@ -104,8 +105,8 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
 
     // INITIALIZATION CHAIN: Ensure directories exist and initial audit file is ready.
     auditProcessingPromise = auditProcessingPromise.then(async () => {
-        await fs.mkdir(logDir, { recursive: true });
-        await fs.mkdir(auditDir, { recursive: true });
+        await fs.mkdir(logDir, {recursive: true});
+        await fs.mkdir(auditDir, {recursive: true});
         await initDayAuditFile(); // Sets up previousLineHash for the first time
     }).catch(err => {
         console.error("Critical error during SystemAudit initial setup (mkdir or initDayAuditFile):", err);
@@ -136,6 +137,7 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
             midnight.setHours(24, 0, 0, 0);
             return midnight.getTime() - now.getTime();
         }
+
         const msUntilMidnight = getMillisecondsUntilMidnight();
 
         setTimeout(() => {
@@ -176,7 +178,15 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
     async function prepareAuditEntry(auditType, details) {
         const timestamp = makeCSVCompliant(new Date().toISOString());
         auditType = makeCSVCompliant(auditType);
-
+        if (details.userID) {
+            details.userID = getShortName(details.userID, details.userID[0])
+        }
+        if (details.fromID) {
+            details.fromID = details.fromID === "system" ? details.fromID : getShortName(details.fromID, details.fromID[0])
+        }
+        if (details.toID) {
+            details.toID = details.toID === "system" ? details.toID : getShortName(details.toID, details.toID[0])
+        }
         const formattedDetails = Array.isArray(details)
             ? makeCSVCompliant(details.join(" "))
             : JSON.stringify(details);
@@ -254,7 +264,7 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
                 this.systemLog(AUDIT_EVENTS[eventType], details);
                 break;
             case AUDIT_EVENTS.PASSKEY_REGISTER:
-                this.auditLog(AUDIT_EVENTS[eventType], { publicKey: details.publicKey });
+                this.auditLog(AUDIT_EVENTS[eventType], {publicKey: details.publicKey});
                 this.systemLog(AUDIT_EVENTS[eventType], details);
                 break;
             case AUDIT_EVENTS.LOCK:
@@ -327,7 +337,7 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
         }
 
         // Handle user logs
-        const currentUsersBuffer = { ...usersBuffer };
+        const currentUsersBuffer = {...usersBuffer};
         usersBuffer = {};
 
         for (const user in currentUsersBuffer) {
@@ -470,7 +480,8 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
 
     this.TEST_ONLY_awaitAuditProcessingCompletion = async function () {
         // This returns a new promise that effectively waits for the current tail of auditProcessingPromise.
-        return auditProcessingPromise.then(() => { });
+        return auditProcessingPromise.then(() => {
+        });
     };
 }
 
