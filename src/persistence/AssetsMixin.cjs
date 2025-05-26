@@ -209,7 +209,6 @@ function AssetsMixin(smartStorage, systemAudit) {
         return true;
     }
 
-
     this.transferPoints = async function (amount, fromID, toID, reason) {
         amount = MathMoney.normalise(amount);
         let fromObj = await smartStorage.loadObject(fromID);
