@@ -199,7 +199,7 @@ const checkAllHashes = async (loadingStrategy) => {
             // Process each day
             for (const day in auditLogs[year][month]) {
                 const dayData = auditLogs[year][month][day];
-                results[year][month][day] = await verifyEntryCollection(dayData.entries);
+                results[year][month][day] = await verifyEntryCollection(dayData.entries, dayData.previousDayContentHash);
             }
         }
     }
@@ -218,7 +218,7 @@ const checkHashForYear = async (year, loadingStrategy) => {
         // Process each day in the month
         for (const day in auditLogs[month]) {
             const dayData = auditLogs[month][day];
-            results[month][day] = await verifyEntryCollection(dayData.entries);
+            results[month][day] = await verifyEntryCollection(dayData.entries, dayData.previousDayContentHash);
         }
     }
 
@@ -232,7 +232,7 @@ const checkHashForMonth = async (year, month, loadingStrategy) => {
     // Process each day in the month
     for (const day in auditLogs) {
         const dayData = auditLogs[day];
-        results[day] = await verifyEntryCollection(dayData.entries);
+        results[day] = await verifyEntryCollection(dayData.entries, dayData.previousDayContentHash);
     }
 
     return results;
