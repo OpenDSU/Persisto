@@ -90,9 +90,9 @@ function Persisto(smartStorage, systemLogger, config) {
         self[funcName] = func.bind(self);
     }
 
-    function nextObjectID(itemType, primaryKeyValue = null) {
+    function nextObjectID(itemType) {
         let currentNumber = smartStorage.getNextObjectId();
-        return convertToBase36Id(itemType, currentNumber, primaryKeyValue);
+        return convertToBase36Id(itemType, currentNumber);
     }
 
     this.getNextNumber = async function (itemType) {
@@ -120,14 +120,7 @@ function Persisto(smartStorage, systemLogger, config) {
                 throw new Error("Creation conflicts detected! Refusing to create object of type '" + itemType + "' with values " + JSON.stringify(initialValues));
             }
 
-            let primaryKeyValue = null;
-            const primaryKeyField = primaryKeyFields[itemType];
-            if (primaryKeyField && initialValues && initialValues[primaryKeyField] !== undefined) {
-                primaryKeyValue = initialValues[primaryKeyField];
-                console.debug("Primary key field " + primaryKeyField + " found in initial values for object of type " + itemType + " with value " + primaryKeyValue);
-            }
-
-            let id = nextObjectID(itemType, primaryKeyValue);
+            let id = nextObjectID(itemType);
             console.debug("Creating object of type " + itemType + " with id " + id);
             let obj = {};
             if (initialValues !== undefined) {
