@@ -125,14 +125,16 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
 
     this.getNextNumber = function (itemType) {
         let systemObject = cache["system"];
+        if(!itemType){
+            itemType = "default";
+        }
         let nextNumber = systemObject[itemType];
-        if (!nextNumber) {
-            nextNumber = systemObject[itemType] = 1;
+        if(typeof nextNumber === "undefined"){
+            nextNumber = 0;
         }
-        else {
-            nextNumber++;
-            systemObject[itemType] = nextNumber;
-        }
+        nextNumber++;
+        systemObject[itemType] = nextNumber;
+
         setForSave("system");
         return nextNumber;
     }
