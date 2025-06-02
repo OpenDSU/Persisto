@@ -285,19 +285,19 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
             case AUDIT_EVENTS.LOCK:
             case AUDIT_EVENTS.UNLOCK:
                 this.auditLog(AUDIT_EVENTS[eventType], details);
-                this.userLog(details.userID, `${details.amount} points ${details.reason}`);
+                this.userLog(details.userID, `${details.amount} ${details.amount === 1 ? 'point' : 'points'} ${details.reason}`);
                 this.systemLog(AUDIT_EVENTS[eventType], details);
                 break;
             case AUDIT_EVENTS.INVITE_SENT:
                 this.userLog(details.userID, `You have sent an invite to ${details.email}`);
                 break;
             case AUDIT_EVENTS.REWARD:
-                this.userLog(details.userID, `You have received ${details.amount} points ${details.reason}`);
+                this.userLog(details.userID, `You have received ${details.amount} ${details.amount === 1 ? 'point' : 'points'} ${details.reason}`);
                 this.systemLog(AUDIT_EVENTS[eventType], details);
                 break;
             case AUDIT_EVENTS.CONFISCATE_LOCKED:
                 await this.auditLog(AUDIT_EVENTS[eventType], details);
-                this.userLog(details.userID, `${details.amount} points  have been confiscated because ${details.reason}`);
+                this.userLog(details.userID, `${details.amount} ${details.amount === 1 ? 'point' : 'points'} have been confiscated because ${details.reason}`);
                 this.systemLog(AUDIT_EVENTS[eventType], details);
                 break;
             default:
