@@ -116,15 +116,15 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
         //console.debug(">>> Initialised cache", cache);
     }
 
-    this.getNextObjectId = function () {
+    /*this.getNextObjectId = function () {
         let systemObject = cache["system"];
         systemObject.currentIDNumber++;
         setForSave("system");
         return systemObject.currentIDNumber;
-    }
+    }*/
 
-    this.getNextNumber = function (itemType) {
-        let systemObject = cache["system"];
+    this.getNextNumber = async function (itemType) {
+        let systemObject = await loadWithCache("system");
         if(!itemType){
             itemType = "default";
         }
@@ -140,8 +140,8 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
     }
 
 
-    this.getLogicalTimestamp = function () {
-        let systemObject = cache["system"];
+    this.getLogicalTimestamp = async function () {
+        let systemObject = await loadWithCache("system");
         systemObject.currentClockTick++;
         setForSave("system");
         return systemObject.currentClockTick;

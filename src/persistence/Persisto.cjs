@@ -90,8 +90,8 @@ function Persisto(smartStorage, systemLogger, config) {
         self[funcName] = func.bind(self);
     }
 
-    function nextObjectID(itemType) {
-        let currentNumber = smartStorage.getNextNumber(itemType);
+    async function nextObjectID(itemType) {
+        let currentNumber = await smartStorage.getNextNumber(itemType);
         return convertToBase36Id(itemType, currentNumber);
     }
 
@@ -120,7 +120,7 @@ function Persisto(smartStorage, systemLogger, config) {
                 throw new Error("Creation conflicts detected! Refusing to create object of type '" + itemType + "' with values " + JSON.stringify(initialValues));
             }
 
-            let id = nextObjectID(itemType);
+            let id = await nextObjectID(itemType);
             console.debug("Creating object of type " + itemType + " with id " + id);
             let obj = {};
             if (initialValues !== undefined) {
@@ -190,8 +190,8 @@ function Persisto(smartStorage, systemLogger, config) {
         return await smartStorage.createGrouping(groupingName, typeName, fieldName);
     }
 
-    this.getLogicalTimestamp = function () {
-        return smartStorage.getLogicalTimestamp();
+    this.getLogicalTimestamp = async function () {
+        return await smartStorage.getLogicalTimestamp();
     }
 
 }

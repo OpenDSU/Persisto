@@ -63,9 +63,9 @@ function AssetsMixin(smartStorage, systemAudit) {
         self[funcName] = func.bind(self);
     }
 
-    function nextObjectID(itemType) {
+    async function nextObjectID(itemType) {
         let firstLetter = itemType[0].toUpperCase();
-        let currentNumber = smartStorage.getNextNumber(itemType);
+        let currentNumber = await smartStorage.getNextNumber(itemType);
         let niceId = transformToAccountID(currentNumber, firstLetter);
         //console.debug(">>>> Next object ID for type " + itemType + " is " + niceId + " with account number " + currentIdNumber);
         return {accountNumber: currentNumber, id: niceId};
@@ -73,7 +73,7 @@ function AssetsMixin(smartStorage, systemAudit) {
 
     function getCreationFunction(itemType) {
         return async function (initialValues) {
-            let {accountNumber, id} = nextObjectID(itemType);
+            let {accountNumber, id} = await nextObjectID(itemType);
             let obj = {accountNumber};
             for (let property in initialValues) {
                 if (!hasField(itemType, property)) {
