@@ -10,9 +10,8 @@ function convertToBase36Id(prefix, numericValue) {
         base36Result = alphanumericChars[modulus] + base36Result;
         currentValue = Math.floor(currentValue / 36);
     }
-    prefix = prefix.toUpperCase().substring(0, 3);
+    prefix = prefix.toUpperCase().substring(0, 7);
     let id = "" + prefix + "." + base36Result;
-
     return id;
 }
 
