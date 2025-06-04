@@ -277,11 +277,11 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
                 this.systemLog(AUDIT_EVENTS[eventType], details);
                 break;
             case AUDIT_EVENTS.PASSKEY_REGISTER:
-                this.auditLog(AUDIT_EVENTS[eventType], {publicKey: details.publicKey});
+                this.auditLog(AUDIT_EVENTS[eventType], details);
                 this.systemLog(AUDIT_EVENTS[eventType], details);
                 break;
             case AUDIT_EVENTS.PASSKEY_DELETE:
-                this.auditLog(AUDIT_EVENTS[eventType], {publicKey: details.publicKey});
+                this.auditLog(AUDIT_EVENTS[eventType], details);
                 this.systemLog(AUDIT_EVENTS[eventType], details);
                 break;
             case AUDIT_EVENTS.LOCK:
