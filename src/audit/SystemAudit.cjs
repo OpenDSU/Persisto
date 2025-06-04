@@ -2,7 +2,7 @@ const fs = require('fs').promises;
 const path = require('path');
 const cryptoUtils = require('./cryptoUtils.cjs');
 const AUDIT_EVENTS = require("./AuditEvents.cjs");
-const { getShortName } = require("../persistence/utils.cjs");
+const {getShortName} = require("../persistence/utils.cjs");
 
 function SystemAudit(flushInterval = 1, logDir, auditDir) {
     if (!logDir) {
@@ -116,8 +116,8 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
 
     // INITIALIZATION CHAIN: Ensure directories exist and initial audit file is ready.
     auditProcessingPromise = auditProcessingPromise.then(async () => {
-        await fs.mkdir(logDir, { recursive: true });
-        await fs.mkdir(auditDir, { recursive: true });
+        await fs.mkdir(logDir, {recursive: true});
+        await fs.mkdir(auditDir, {recursive: true});
         await initDayAuditFile(); // Sets up previousLineHash for the first time
     }).catch(err => {
         console.error("Critical error during SystemAudit initial setup (mkdir or initDayAuditFile):", err);
@@ -267,6 +267,8 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
     };
 
     this.smartLog = async function (eventType, details) {
+        let auditDetails;
+        let userDetails;
         switch (eventType) {
             case AUDIT_EVENTS.TRANSFER:
             case AUDIT_EVENTS.TRANSFER_LOCKED:
@@ -275,18 +277,30 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
                 this.systemLog(AUDIT_EVENTS[eventType], details);
                 break;
             case AUDIT_EVENTS.PASSKEY_REGISTER:
-                this.auditLog(AUDIT_EVENTS[eventType], { publicKey: details.publicKey });
+                this.auditLog(AUDIT_EVENTS[eventType], {publicKey: details.publicKey});
                 this.systemLog(AUDIT_EVENTS[eventType], details);
                 break;
             case AUDIT_EVENTS.PASSKEY_DELETE:
-                this.auditLog(AUDIT_EVENTS[eventType], { publicKey: details.publicKey });
+                this.auditLog(AUDIT_EVENTS[eventType], {publicKey: details.publicKey});
                 this.systemLog(AUDIT_EVENTS[eventType], details);
                 break;
             case AUDIT_EVENTS.LOCK:
             case AUDIT_EVENTS.UNLOCK:
-                this.auditLog(AUDIT_EVENTS[eventType], details);
-                this.userLog(details.userID, `${details.amount} ${details.amount === 1 ? 'point' : 'points'} ${details.reason}`);
-                this.systemLog(AUDIT_EVENTS[eventType], details);
+                if (typeof details.reason === "object" && details.reason["auditLogReason"]) {
+                    auditDetails = JSON.parse(JSON.stringify(details));
+                    auditDetails.reason = details.reason.auditLogReason;
+                } else {
+                    auditDetails = details;
+                }
+                if (typeof details.reason === "object" && details.reason["userLogReason"]) {
+                    userDetails = JSON.parse(JSON.stringify(details));
+                    userDetails.reason = details.reason.userLogReason;
+                } else {
+                    userDetails = details;
+                }
+                this.auditLog(AUDIT_EVENTS[eventType], auditDetails);
+                this.userLog(details.userID, `${details.amount} ${details.amount === 1 ? 'point' : 'points'} ${userDetails.reason}`);
+                this.systemLog(AUDIT_EVENTS[eventType], auditDetails);
                 break;
             case AUDIT_EVENTS.INVITE_SENT:
                 this.userLog(details.userID, `You have sent an invite to ${details.email}`);
@@ -352,7 +366,7 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
         }
 
         // Handle user logs
-        const currentUsersBuffer = { ...usersBuffer };
+        const currentUsersBuffer = {...usersBuffer};
         usersBuffer = {};
 
         for (const user in currentUsersBuffer) {
