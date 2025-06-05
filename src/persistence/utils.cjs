@@ -4,13 +4,11 @@ function convertToBase36Id(prefix, numericValue) {
 
     let base36Result = '';
     let currentValue = numericValue;
-    console.log("-----------------------------------------------------Numeric value", numericValue)
     while (currentValue > 0) {
         const modulus = currentValue % 36;
         base36Result = alphanumericChars[modulus] + base36Result;
         currentValue = Math.floor(currentValue / 36);
     }
-    console.log("-----------------------------------------------------base36Result", base36Result)
     prefix = prefix.toUpperCase().substring(0, 7);
     let id = "" + prefix + "." + base36Result;
     return id;
