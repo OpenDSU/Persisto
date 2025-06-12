@@ -101,6 +101,14 @@ function Persisto(smartStorage, systemLogger, config) {
 
     async function getObjectFromIdOrKey(itemType, objectID, allowMissing = false) {
         if (await smartStorage.objectExists(objectID)) {
+            let prefix = itemType.slice(0, 6).toUpperCase();
+                if(!objectID || !objectID.startsWith(prefix)){
+                    if( allowMissing){
+                        return undefined;
+                    } else {
+                        await $$.throwError("Object ID " + objectID + " does not start with expected prefix " + prefix + ". Cannot get object of type " + itemType);
+                    }
+                }
             return await smartStorage.loadObject(objectID);
         }
         // try to treat the objectID as index value
