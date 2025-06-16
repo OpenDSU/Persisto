@@ -185,6 +185,10 @@ function Persisto(smartStorage, systemLogger, config) {
                 let obj = await getObjectFromIdOrKey(typeName, objectId);
                 return await smartStorage.updateIndexedField(obj.id, typeName, fieldName, obj[fieldName], value);
             });
+        addFunctionToSelf("getEvery",  upCaseFirstLetter(typeName), upCaseFirstLetter(fieldName),
+            async function () {
+                    return await smartStorage.getObjectsIndexValue(typeName);
+            });
         return await smartStorage.createIndex(typeName, fieldName);
     }
 

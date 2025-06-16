@@ -277,6 +277,17 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
         //console.debug(">>> Checking if key exists in index", key, "for type", typeName, "index is", index);
         return index.ids[key] !== undefined;
     }
+    this.getObjectsIndexValue = async function (typeName) {
+        let indexFieldName = _indexes[typeName];
+        if (!indexFieldName) {
+            return undefined; //no index exists, so key cannot exist
+        }
+
+        let indexId = makeSpecialName(typeName, indexFieldName);
+        let index = await loadWithCache(indexId);
+        //console.debug(">>> Getting objects for key", key, "in index", typeName, "index is", index);
+        return Object.keys(index.ids)
+    }
 
     this.updateGrouping = async function (typeName, objId) {
         let obj = await loadWithCache(objId);
