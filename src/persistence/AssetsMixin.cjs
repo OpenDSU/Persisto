@@ -5,6 +5,7 @@
  */
 const {transformToAccountID, MathMoney} = require("./utils.cjs");
 const AUDIT_EVENTS = require("../audit/AuditEvents.cjs");
+const SYSLOG_EVENTS = require("../audit/SyslogEvents.cjs");
 
 function AssetsMixin(smartStorage, systemAudit) {
     console.debug(">>>>> Start initialisation of AssetsMixin");
@@ -23,7 +24,7 @@ function AssetsMixin(smartStorage, systemAudit) {
             addFunctionToSelf("create", assetType, "", getCreationFunction(assetType));
             addFunctionToSelf("delete", assetType, "", async function (objectID) {
                 await smartStorage.deleteObject(assetType, objectID);
-                await systemAudit.smartLog(AUDIT_EVENTS.DELETE, {assetType, objectID})
+                await systemAudit.smartLog(SYSLOG_EVENTS.DELETE, {assetType, objectID})
             });
 
             addFunctionToSelf("get", assetType, "", async function (objectID) {
@@ -86,7 +87,7 @@ function AssetsMixin(smartStorage, systemAudit) {
             }
             //console.debug(">>>> Created object of type " + itemType + " with id " + id, JSON.stringify(obj));
             obj = await smartStorage.createObject(id, obj);
-            await systemAudit.smartLog(AUDIT_EVENTS.CREATE_OBJECT, {itemType, id})
+            await systemAudit.smartLog(SYSLOG_EVENTS.CREATE_OBJECT, {itemType, id})
             return obj;
         }
     }
@@ -246,8 +247,7 @@ function AssetsMixin(smartStorage, systemAudit) {
     }
 
     this.loginEvent = function (userID, state, reason) {
-        // auditLog(AUDIT_EVENTS.LOGIN, userID, state, reason);
-        systemAudit.smartLog(AUDIT_EVENTS.LOGIN, {userID, state, reason});
+        systemAudit.smartLog(SYSLOG_EVENTS.LOGIN, {userID, state, reason});
     };
 
     this.addController = async function (objectId, newController, role) {
