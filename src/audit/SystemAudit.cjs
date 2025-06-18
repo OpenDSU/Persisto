@@ -139,31 +139,6 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
         return path.join(logDir, `user-${userID}.log`);
     }
 
-    // Set up a daily check at midnight
-    // setupDailyCheck(); // Will be called after all definitions
-
-    function setupDailyCheckInternal() {
-        function getMillisecondsUntilMidnight() {
-            const now = new Date();
-            const midnight = new Date(now);
-            midnight.setHours(24, 0, 0, 0);
-            return midnight.getTime() - now.getTime();
-        }
-
-        const msUntilMidnight = getMillisecondsUntilMidnight();
-
-        setTimeout(() => {
-            auditProcessingPromise = auditProcessingPromise.then(async () => {
-                await checkAndUpdateDay(); // Use the new async, serialized version
-            }).catch(err => {
-                console.error("Error during scheduled daily check in promise chain:", err);
-            }).finally(() => {
-                // Crucially, ensure the next check is scheduled.
-                setupDailyCheckInternal();
-            });
-        }, msUntilMidnight);
-    }
-
     function makeCSVCompliant(input) {
         // Replace semicolons with commas
         let output = input.replace(/;/g, ',');
@@ -229,7 +204,7 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
             auditBuffer.push(entry.hashEntry);
 
             if (!auditTimer) {
-                auditTimer = setTimeout(() => this.auditFlush(), flushInterval);
+                auditTimer = setInterval(() => this.auditFlush(), flushInterval);
             }
         }).catch(err => {
             console.error("Error in serialized audit processing chain (auditLog):", err);
@@ -246,7 +221,7 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
         buffer.push(entryContent);
 
         if (!logsTimer) {
-            logsTimer = setTimeout(() => this.flush(), flushInterval);
+            logsTimer = setInterval(() => this.flush(), flushInterval);
         }
     }
 
@@ -263,7 +238,7 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
         usersBuffer[forUser] = usersBuffer[forUser] || [];
         usersBuffer[forUser].push(`[${timestamp}]; ${log.trim()};`);
         if (!logsTimer) {
-            logsTimer = setTimeout(() => this.flush(), flushInterval);
+            logsTimer = setInterval(() => this.flush(), flushInterval);
         }
     };
 
@@ -346,9 +321,14 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
             auditBuffer = [];
             const auditData = currentAuditBuffer.join('\n') + '\n';
             await appendFile(auditFileName, auditData);
+        } else {
+            // If there's nothing to flush, clear the interval
+            if (auditTimer) {
+                clearInterval(auditTimer);
+                auditTimer = null;
+            }
         }
 
-        auditTimer = undefined;
         duringAuditFlush = false;
     };
 
@@ -371,13 +351,22 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
         const currentUsersBuffer = { ...usersBuffer };
         usersBuffer = {};
 
+        const hasUserLogs = Object.keys(currentUsersBuffer).length > 0;
+
         for (const user in currentUsersBuffer) {
             const fileName = getLogFileNameForUser(user);
             const logData = currentUsersBuffer[user].join('\n') + '\n';
             await appendFile(fileName, logData);
         }
 
-        logsTimer = undefined;
+        // If there's nothing to flush, clear the interval
+        if (buffer.length === 0 && !hasUserLogs) {
+            if (logsTimer) {
+                clearInterval(logsTimer);
+                logsTimer = null;
+            }
+        }
+
         duringLogFlush = false;
     };
 
@@ -490,6 +479,14 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
     }
 
     process.on('exit', async () => {
+        // Clear intervals
+        if (logsTimer) {
+            clearInterval(logsTimer);
+        }
+        if (auditTimer) {
+            clearInterval(auditTimer);
+        }
+        
         await this.flush(); // Ensure logs are flushed
         // For auditFlush, it's more complex if auditLog is still queueing via auditProcessingPromise
         // A robust shutdown would await auditProcessingPromise then auditFlush.
@@ -499,15 +496,20 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
     });
 
     process.on('SIGINT', async () => {
+        // Clear intervals
+        if (logsTimer) {
+            clearInterval(logsTimer);
+        }
+        if (auditTimer) {
+            clearInterval(auditTimer);
+        }
+        
         await this.flush();
         // Similar to 'exit', robustly awaiting all pending audit ops could be added.
         // await auditProcessingPromise;
         await this.auditFlush();
         // process.exit(); // Typically, SIGINT handlers call process.exit if they are done.
     });
-
-    // Start the daily check cycle, after all functions are defined and initial promise chain is set up.
-    setupDailyCheckInternal();
 
     this.TEST_ONLY_awaitAuditProcessingCompletion = async function () {
         // This returns a new promise that effectively waits for the current tail of auditProcessingPromise.
