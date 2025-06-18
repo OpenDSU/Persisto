@@ -2,7 +2,7 @@
  * WebCryptoUtils.cjs - Web Crypto API utilities for both Node.js and browser environments
  */
 
-const base58 = require('./achillesUtils/base58.js');
+const base58 = require('./achillesUtils/base58-node.js');
 
 // Get the Web Crypto API
 let crypto;
