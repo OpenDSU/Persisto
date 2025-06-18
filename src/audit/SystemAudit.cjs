@@ -62,7 +62,7 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
             try {
                 const content = await fs.readFile(yesterdayFilePath, 'utf8');
                 const lines = content.split('\n').filter(line => line.trim() !== '');
-                
+
                 if (lines.length > 0) {
                     // Get the last line and extract the hash (first part before semicolon)
                     const lastLine = lines[lines.length - 1];
@@ -88,7 +88,7 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
                 const referenceLineHash = await cryptoUtils.sha256Base58(lastHashFromPreviousDay + referenceContentHash);
                 const timestamp = new Date().toISOString();
                 const referenceEntry = `${referenceLineHash}; [${timestamp}]; REFERENCE; ${referenceDetails};\n`;
-                
+
                 await fs.writeFile(auditFilePath, referenceEntry, 'utf8');
                 previousLineHash = referenceLineHash;
                 console.log(`[AUDIT_DEBUG] initDayAuditFile (new file for ${today}): Created reference entry with hash: ${referenceLineHash}`);
@@ -128,6 +128,9 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
             await initDayAuditFile(); // This will set previousLineHash based on yesterday's file if it's a new file
             return true;
         }
+
+        // Even if day hasn't changed, verify sync when buffer is empty
+        await verifyPreviousHashSync();
         return false;
     }
 
@@ -136,6 +139,9 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
         await fs.mkdir(logDir, { recursive: true });
         await fs.mkdir(auditDir, { recursive: true });
         await initDayAuditFile(); // Sets up previousLineHash for the first time
+
+        // Verify initial sync state
+        await verifyPreviousHashSync();
     }).catch(err => {
         console.error("Critical error during SystemAudit initial setup (mkdir or initDayAuditFile):", err);
         // This instance might be in a bad state.
@@ -213,9 +219,46 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
         };
     }
 
+    // Helper function to verify and sync previousLineHash with file state
+    async function verifyPreviousHashSync() {
+        // Only verify when buffer is empty (no pending writes)
+        if (auditBuffer.length > 0) {
+            return; // Buffer has pending entries, memory state is expected to be ahead
+        }
+
+        try {
+            const auditFilePath = getAuditLogFileName();
+            const content = await fs.readFile(auditFilePath, 'utf8');
+            const lines = content.split('\n').filter(line => line.trim() !== '');
+
+            let fileLastHash = '';
+            if (lines.length > 0) {
+                const lastLine = lines[lines.length - 1];
+                const parts = lastLine.split('; ');
+                if (parts.length > 0) {
+                    fileLastHash = parts[0];
+                }
+            }
+
+            if (previousLineHash !== fileLastHash) {
+                console.log(`[AUDIT_SYNC] Memory/file hash mismatch detected. Memory: ${previousLineHash}, File: ${fileLastHash}. Syncing to file state.`);
+                previousLineHash = fileLastHash;
+            }
+        } catch (error) {
+            if (error.code !== 'ENOENT') {
+                console.error('[AUDIT_SYNC] Error verifying hash sync:', error);
+            }
+            // If file doesn't exist, memory state is likely correct
+        }
+    }
+
     this.auditLog = function (auditType, details) { // Outer function can remain synchronous
         auditProcessingPromise = auditProcessingPromise.then(async () => {
             await checkAndUpdateDay(); // Ensures day change is handled and previousLineHash is correct for the day
+
+            // Verify memory/file sync when buffer is empty (safety check)
+            await verifyPreviousHashSync();
+
             const entry = await prepareAuditEntry(auditType, details); // This reads and then updates previousLineHash
             auditBuffer.push(entry.hashEntry);
 
@@ -502,7 +545,7 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
         if (auditTimer) {
             clearInterval(auditTimer);
         }
-        
+
         await this.flush(); // Ensure logs are flushed
         // For auditFlush, it's more complex if auditLog is still queueing via auditProcessingPromise
         // A robust shutdown would await auditProcessingPromise then auditFlush.
@@ -519,7 +562,7 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
         if (auditTimer) {
             clearInterval(auditTimer);
         }
-        
+
         await this.flush();
         // Similar to 'exit', robustly awaiting all pending audit ops could be added.
         // await auditProcessingPromise;
