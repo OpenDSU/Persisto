@@ -84,8 +84,8 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
                 // Create a proper audit entry for the previous day reference
                 const referenceDetails = `Reference to previous day: ${lastHashFromPreviousDay}`;
                 const referenceContent = `REFERENCE; ${referenceDetails};`;
-                const referenceContentHash = await cryptoUtils.sha256Base64(referenceContent);
-                const referenceLineHash = await cryptoUtils.sha256Base64(lastHashFromPreviousDay + referenceContentHash);
+                const referenceContentHash = await cryptoUtils.sha256Base58(referenceContent);
+                const referenceLineHash = await cryptoUtils.sha256Base58(lastHashFromPreviousDay + referenceContentHash);
                 const timestamp = new Date().toISOString();
                 const referenceEntry = `${referenceLineHash}; [${timestamp}]; REFERENCE; ${referenceDetails};\n`;
                 
@@ -171,11 +171,11 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
     }
 
     async function calculateHash(data) {
-        return await cryptoUtils.sha256Base64(data);
+        return await cryptoUtils.sha256Base58(data);
     }
 
     async function generateLineHash(line, prevHash) {
-        return await cryptoUtils.sha256Base64(prevHash + line);
+        return await cryptoUtils.sha256Base58(prevHash + line);
     }
 
     async function prepareAuditEntry(auditType, details) {
@@ -441,7 +441,7 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
                     try {
                         const content = await fs.readFile(filePath, 'utf8');
                         const lines = content.split('\n').filter(line => line.trim() !== '');
-                        const hash = await cryptoUtils.sha256Base64(content);
+                        const hash = await cryptoUtils.sha256Base58(content);
 
                         auditFiles.push({
                             date: dateStr,
