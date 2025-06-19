@@ -8,45 +8,5 @@
         "test": "node tests/smokeTest.mjs",
         "clean": "node clean.mjs",
         "postinstall": "rm -rf src/audit/achillesUtils && git clone https://github.com/AssistOS-AI/achillesUtils.git src/audit/achillesUtils"
-    },
-    "keywords": [
-        "persistence",
-        "database",
-        "crud",
-        "digital-assets",
-        "nft",
-        "storage",
-        "audit",
-        "logging"
-    ],
-    "author": "",
-    "license": "SEE LICENSE IN LICENSE",
-    "engines": {
-        "node": ">=14.0.0"
-    },
-    "files": [
-        "src/",
-        "index.cjs",
-        "clean.mjs",
-        "LICENSE",
-        "README.md"
-    ],
-    "exports": {
-        ".": {
-            "require": "./index.cjs",
-            "import": "./index.cjs"
-        },
-        "./clean": {
-            "import": "./clean.mjs"
-        }
-    },
-    "devDependencies": {},
-    "repository": {
-        "type": "git",
-        "url": ""
-    },
-    "bugs": {
-        "url": ""
-    },
-    "homepage": ""
+    }
 }
