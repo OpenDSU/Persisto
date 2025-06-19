@@ -1,0 +1,3 @@
+**/node_modules/**
+**/temp_persistence/**
+package-lock.json
