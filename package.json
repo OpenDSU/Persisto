@@ -40,7 +40,7 @@
         }
     },
     "dependencies": {
-        "achillesUtils": "git+https://github.com/AssistosAI/achillesUtils.git"
+        "achillesUtils": "git+https://github.com/AssistOS-AI/achillesUtils.git"
     },
     "devDependencies": {},
     "repository": {
