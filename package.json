@@ -6,7 +6,8 @@
     "type": "module",
     "scripts": {
         "test": "node tests/smokeTest.mjs",
-        "clean": "node clean.mjs"
+        "clean": "node clean.mjs",
+        "postinstall": "rm -rf src/audit/achillesUtils && git clone https://github.com/AssistOS-AI/achillesUtils.git src/audit/achillesUtils"
     },
     "keywords": [
         "persistence",
@@ -38,9 +39,6 @@
         "./clean": {
             "import": "./clean.mjs"
         }
-    },
-    "dependencies": {
-        "achillesUtils": "git+https://github.com/AssistOS-AI/achillesUtils.git"
     },
     "devDependencies": {},
     "repository": {
