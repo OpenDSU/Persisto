@@ -2,7 +2,6 @@
  * WebCryptoUtils.cjs - Web Crypto API utilities for both Node.js and browser environments
  */
 
-const base58 = require('./achillesUtils/base58-node.js');
 
 // Get the Web Crypto API
 let crypto;
@@ -58,6 +57,7 @@ async function sha256Base58Full(data) {
  * @returns {string} - The base58-encoded string
  */
 function arrayBufferToBase58(buffer) {
+    const base58 = require('./achillesUtils/base58-node.js');
     const bytes = new Uint8Array(buffer);
     return base58.encode(bytes);
 }
