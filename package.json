@@ -1,0 +1,54 @@
+{
+    "name": "Persisto",
+    "version": "1.0.0",
+    "description": "Generic persistence that is pluggable regarding the actual storage, offering support for standard CRUD operations as well as digital assets (objects similar to smart contracts or NFTs, as they have associated value)",
+    "main": "index.cjs",
+    "type": "module",
+    "scripts": {
+        "test": "node tests/smokeTest.mjs",
+        "clean": "node clean.mjs"
+    },
+    "keywords": [
+        "persistence",
+        "database",
+        "crud",
+        "digital-assets",
+        "nft",
+        "storage",
+        "audit",
+        "logging"
+    ],
+    "author": "",
+    "license": "SEE LICENSE IN LICENSE",
+    "engines": {
+        "node": ">=14.0.0"
+    },
+    "files": [
+        "src/",
+        "index.cjs",
+        "clean.mjs",
+        "LICENSE",
+        "README.md"
+    ],
+    "exports": {
+        ".": {
+            "require": "./index.cjs",
+            "import": "./index.cjs"
+        },
+        "./clean": {
+            "import": "./clean.mjs"
+        }
+    },
+    "dependencies": {
+        "achillesUtils": "git+https://github.com/AssistosAI/achillesUtils.git"
+    },
+    "devDependencies": {},
+    "repository": {
+        "type": "git",
+        "url": ""
+    },
+    "bugs": {
+        "url": ""
+    },
+    "homepage": ""
+}
