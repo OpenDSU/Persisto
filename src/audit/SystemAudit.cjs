@@ -58,24 +58,40 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
             const yesterdayStr = yesterday.toISOString().split('T')[0];
             const yesterdayFilePath = path.join(auditDir, `audit_${yesterdayStr}.log`);
 
-            let previousDayFileContentHash = '';
+            let lastHashFromPreviousDay = '';
             try {
                 const content = await fs.readFile(yesterdayFilePath, 'utf8');
-                // Hash content regardless of whether it's empty or not, as long as it's read.
-                // This aligns with cryptoUtils.sha256Base64 handling empty strings.
-                previousDayFileContentHash = await cryptoUtils.sha256Base64(content);
+                const lines = content.split('\n').filter(line => line.trim() !== '');
+
+                if (lines.length > 0) {
+                    // Get the last line and extract the hash (first part before semicolon)
+                    const lastLine = lines[lines.length - 1];
+                    const parts = lastLine.split('; ');
+                    if (parts.length > 0) {
+                        lastHashFromPreviousDay = parts[0];
+                        console.log(`[AUDIT_DEBUG] initDayAuditFile: Extracted last hash from previous day: ${lastHashFromPreviousDay}`);
+                    }
+                }
             } catch (err) {
                 if (err.code === 'ENOENT') {
                     console.log(`No previous day file (${yesterdayStr}) found. Starting new chain.`);
                 } else {
-                    console.log(`Error reading or hashing previous day file (${yesterdayStr}): ${err.message}. Starting new chain.`);
+                    console.log(`Error reading previous day file (${yesterdayStr}): ${err.message}. Starting new chain.`);
                 }
             }
 
-            if (previousDayFileContentHash) {
-                await fs.writeFile(auditFilePath, previousDayFileContentHash + '\n', 'utf8');
-                previousLineHash = previousDayFileContentHash;
-                console.log(`[AUDIT_DEBUG] initDayAuditFile (new file for ${today}): previousLineHash set from yesterday's hash: ${previousLineHash}`);
+            if (lastHashFromPreviousDay) {
+                // Create a proper audit entry for the previous day reference
+                const referenceDetails = `Reference to previous day: ${lastHashFromPreviousDay}`;
+                const referenceContent = `REFERENCE; ${referenceDetails};`;
+                const referenceContentHash = await cryptoUtils.sha256Base58(referenceContent);
+                const referenceLineHash = await cryptoUtils.sha256Base58(lastHashFromPreviousDay + referenceContentHash);
+                const timestamp = new Date().toISOString();
+                const referenceEntry = `${referenceLineHash}; [${timestamp}]; REFERENCE; ${referenceDetails};\n`;
+
+                await fs.writeFile(auditFilePath, referenceEntry, 'utf8');
+                previousLineHash = referenceLineHash;
+                console.log(`[AUDIT_DEBUG] initDayAuditFile (new file for ${today}): Created reference entry with hash: ${referenceLineHash}`);
             } else {
                 await fs.writeFile(auditFilePath, '', 'utf8'); // Start with an empty file if no prev hash
                 previousLineHash = '';
@@ -112,6 +128,9 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
             await initDayAuditFile(); // This will set previousLineHash based on yesterday's file if it's a new file
             return true;
         }
+
+        // Even if day hasn't changed, verify sync when buffer is empty
+        await verifyPreviousHashSync();
         return false;
     }
 
@@ -120,6 +139,9 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
         await fs.mkdir(logDir, { recursive: true });
         await fs.mkdir(auditDir, { recursive: true });
         await initDayAuditFile(); // Sets up previousLineHash for the first time
+
+        // Verify initial sync state
+        await verifyPreviousHashSync();
     }).catch(err => {
         console.error("Critical error during SystemAudit initial setup (mkdir or initDayAuditFile):", err);
         // This instance might be in a bad state.
@@ -139,31 +161,6 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
         return path.join(logDir, `user-${userID}.log`);
     }
 
-    // Set up a daily check at midnight
-    // setupDailyCheck(); // Will be called after all definitions
-
-    function setupDailyCheckInternal() {
-        function getMillisecondsUntilMidnight() {
-            const now = new Date();
-            const midnight = new Date(now);
-            midnight.setHours(24, 0, 0, 0);
-            return midnight.getTime() - now.getTime();
-        }
-
-        const msUntilMidnight = getMillisecondsUntilMidnight();
-
-        setTimeout(() => {
-            auditProcessingPromise = auditProcessingPromise.then(async () => {
-                await checkAndUpdateDay(); // Use the new async, serialized version
-            }).catch(err => {
-                console.error("Error during scheduled daily check in promise chain:", err);
-            }).finally(() => {
-                // Crucially, ensure the next check is scheduled.
-                setupDailyCheckInternal();
-            });
-        }, msUntilMidnight);
-    }
-
     function makeCSVCompliant(input) {
         // Replace semicolons with commas
         let output = input.replace(/;/g, ',');
@@ -180,11 +177,11 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
     }
 
     async function calculateHash(data) {
-        return await cryptoUtils.sha256Base64(data);
+        return await cryptoUtils.sha256Base58(data);
     }
 
     async function generateLineHash(line, prevHash) {
-        return await cryptoUtils.sha256Base64(prevHash + line);
+        return await cryptoUtils.sha256Base58(prevHash + line);
     }
 
     async function prepareAuditEntry(auditType, details) {
@@ -222,14 +219,51 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
         };
     }
 
+    // Helper function to verify and sync previousLineHash with file state
+    async function verifyPreviousHashSync() {
+        // Only verify when buffer is empty (no pending writes)
+        if (auditBuffer.length > 0) {
+            return; // Buffer has pending entries, memory state is expected to be ahead
+        }
+
+        try {
+            const auditFilePath = getAuditLogFileName();
+            const content = await fs.readFile(auditFilePath, 'utf8');
+            const lines = content.split('\n').filter(line => line.trim() !== '');
+
+            let fileLastHash = '';
+            if (lines.length > 0) {
+                const lastLine = lines[lines.length - 1];
+                const parts = lastLine.split('; ');
+                if (parts.length > 0) {
+                    fileLastHash = parts[0];
+                }
+            }
+
+            if (previousLineHash !== fileLastHash) {
+                console.log(`[AUDIT_SYNC] Memory/file hash mismatch detected. Memory: ${previousLineHash}, File: ${fileLastHash}. Syncing to file state.`);
+                previousLineHash = fileLastHash;
+            }
+        } catch (error) {
+            if (error.code !== 'ENOENT') {
+                console.error('[AUDIT_SYNC] Error verifying hash sync:', error);
+            }
+            // If file doesn't exist, memory state is likely correct
+        }
+    }
+
     this.auditLog = function (auditType, details) { // Outer function can remain synchronous
         auditProcessingPromise = auditProcessingPromise.then(async () => {
             await checkAndUpdateDay(); // Ensures day change is handled and previousLineHash is correct for the day
+
+            // Verify memory/file sync when buffer is empty (safety check)
+            await verifyPreviousHashSync();
+
             const entry = await prepareAuditEntry(auditType, details); // This reads and then updates previousLineHash
             auditBuffer.push(entry.hashEntry);
 
             if (!auditTimer) {
-                auditTimer = setTimeout(() => this.auditFlush(), flushInterval);
+                auditTimer = setInterval(() => this.auditFlush(), flushInterval);
             }
         }).catch(err => {
             console.error("Error in serialized audit processing chain (auditLog):", err);
@@ -246,7 +280,7 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
         buffer.push(entryContent);
 
         if (!logsTimer) {
-            logsTimer = setTimeout(() => this.flush(), flushInterval);
+            logsTimer = setInterval(() => this.flush(), flushInterval);
         }
     }
 
@@ -263,7 +297,7 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
         usersBuffer[forUser] = usersBuffer[forUser] || [];
         usersBuffer[forUser].push(`[${timestamp}]; ${log.trim()};`);
         if (!logsTimer) {
-            logsTimer = setTimeout(() => this.flush(), flushInterval);
+            logsTimer = setInterval(() => this.flush(), flushInterval);
         }
     };
 
@@ -346,9 +380,14 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
             auditBuffer = [];
             const auditData = currentAuditBuffer.join('\n') + '\n';
             await appendFile(auditFileName, auditData);
+        } else {
+            // If there's nothing to flush, clear the interval
+            if (auditTimer) {
+                clearInterval(auditTimer);
+                auditTimer = null;
+            }
         }
 
-        auditTimer = undefined;
         duringAuditFlush = false;
     };
 
@@ -371,13 +410,22 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
         const currentUsersBuffer = { ...usersBuffer };
         usersBuffer = {};
 
+        const hasUserLogs = Object.keys(currentUsersBuffer).length > 0;
+
         for (const user in currentUsersBuffer) {
             const fileName = getLogFileNameForUser(user);
             const logData = currentUsersBuffer[user].join('\n') + '\n';
             await appendFile(fileName, logData);
         }
 
-        logsTimer = undefined;
+        // If there's nothing to flush, clear the interval
+        if (buffer.length === 0 && !hasUserLogs) {
+            if (logsTimer) {
+                clearInterval(logsTimer);
+                logsTimer = null;
+            }
+        }
+
         duringLogFlush = false;
     };
 
@@ -436,7 +484,7 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
                     try {
                         const content = await fs.readFile(filePath, 'utf8');
                         const lines = content.split('\n').filter(line => line.trim() !== '');
-                        const hash = await cryptoUtils.sha256Base64(content);
+                        const hash = await cryptoUtils.sha256Base58(content);
 
                         auditFiles.push({
                             date: dateStr,
@@ -490,6 +538,14 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
     }
 
     process.on('exit', async () => {
+        // Clear intervals
+        if (logsTimer) {
+            clearInterval(logsTimer);
+        }
+        if (auditTimer) {
+            clearInterval(auditTimer);
+        }
+
         await this.flush(); // Ensure logs are flushed
         // For auditFlush, it's more complex if auditLog is still queueing via auditProcessingPromise
         // A robust shutdown would await auditProcessingPromise then auditFlush.
@@ -499,15 +555,20 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
     });
 
     process.on('SIGINT', async () => {
+        // Clear intervals
+        if (logsTimer) {
+            clearInterval(logsTimer);
+        }
+        if (auditTimer) {
+            clearInterval(auditTimer);
+        }
+
         await this.flush();
         // Similar to 'exit', robustly awaiting all pending audit ops could be added.
         // await auditProcessingPromise;
         await this.auditFlush();
         // process.exit(); // Typically, SIGINT handlers call process.exit if they are done.
     });
-
-    // Start the daily check cycle, after all functions are defined and initial promise chain is set up.
-    setupDailyCheckInternal();
 
     this.TEST_ONLY_awaitAuditProcessingCompletion = async function () {
         // This returns a new promise that effectively waits for the current tail of auditProcessingPromise.
