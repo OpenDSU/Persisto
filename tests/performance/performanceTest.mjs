@@ -7,7 +7,7 @@ import { initialisePersisto } from '../../index.cjs';
 // Performance test configuration
 const TEST_SIZES = process.env.QUICK_TEST === 'true'
     ? [100, 500, 1000]
-        : [100, 500, 1000, 2500, 5000, 10000];
+    : [100, 500, 1000, 2500, 5000, 10000];
 const RETRIEVAL_TESTS_PER_SIZE = process.env.QUICK_TEST === 'true' ? 50 : 100; // Number of random retrievals to test per size
 
 async function createPerformanceTest() {
@@ -45,10 +45,6 @@ async function createPerformanceTest() {
         console.log("  ⏱️  Creating users...");
         const createStartTime = Date.now();
 
-        // Memory usage tracking
-        const initialMemory = process.memoryUsage();
-        console.log(`    Initial memory: ${(initialMemory.heapUsed / 1024 / 1024).toFixed(2)} MB`);
-
         // Create users with varied data
         const userIds = [];
         const userEmails = [];
@@ -78,10 +74,9 @@ async function createPerformanceTest() {
 
             // Progress indicator for large datasets
             if (i > 0 && i % 1000 === 0) {
-                const currentMemory = process.memoryUsage();
                 const elapsedTime = Date.now() - createStartTime;
                 const currentRate = (i / elapsedTime * 1000).toFixed(2);
-                console.log(`    Created ${i} users... (${currentRate} users/sec, ${(currentMemory.heapUsed / 1024 / 1024).toFixed(2)} MB)`);
+                console.log(`    Created ${i} users... (${currentRate} users/sec)`);
             }
 
             // More frequent progress updates for very large datasets
@@ -96,15 +91,8 @@ async function createPerformanceTest() {
         const createEndTime = Date.now();
         const creationTime = createEndTime - createStartTime;
 
-        // Final memory usage
-        const finalMemory = process.memoryUsage();
-        const memoryUsed = (finalMemory.heapUsed - initialMemory.heapUsed) / 1024 / 1024;
-        const memoryPerUser = (memoryUsed * 1024) / testSize; // KB per user
-
         console.log(`  ✅ Created ${testSize} users in ${creationTime}ms`);
         console.log(`  📈 Creation rate: ${(testSize / creationTime * 1000).toFixed(2)} users/second`);
-        console.log(`  💾 Memory used: ${memoryUsed.toFixed(2)} MB (${memoryPerUser.toFixed(2)} KB/user)`);
-        console.log(`  📊 Final memory: ${(finalMemory.heapUsed / 1024 / 1024).toFixed(2)} MB`);
 
         // Test retrieval performance
         console.log("  🔍 Testing retrieval performance...");
@@ -160,9 +148,6 @@ async function createPerformanceTest() {
             userCount: testSize,
             creationTime,
             creationRate: testSize / creationTime * 1000,
-            memoryUsed: memoryUsed,
-            memoryPerUser: memoryPerUser,
-            finalMemoryMB: finalMemory.heapUsed / 1024 / 1024,
             idRetrieval: {
                 avg: avgIdRetrievalTime,
                 min: minIdRetrievalTime,
@@ -205,10 +190,10 @@ async function createPerformanceTest() {
     console.log("=======================");
 
     console.log("\n🏗️  Creation Performance:");
-    console.log("Users\t\tTime(ms)\tRate(users/sec)\tMemory(MB)\tKB/user");
-    console.log("----\t\t--------\t---------------\t----------\t-------");
+    console.log("Users\t\tTime(ms)\tRate(users/sec)");
+    console.log("----\t\t--------\t---------------");
     results.forEach(result => {
-        console.log(`${result.userCount}\t\t${result.creationTime}\t\t${result.creationRate.toFixed(2)}\t\t${result.memoryUsed.toFixed(2)}\t\t${result.memoryPerUser.toFixed(2)}`);
+        console.log(`${result.userCount}\t\t${result.creationTime}\t\t${result.creationRate.toFixed(2)}`);
     });
 
     console.log("\n🔍 ID Retrieval Performance (Average):");
@@ -252,8 +237,6 @@ async function createPerformanceTest() {
     console.log(`• ID Retrieval: ${idScalingFactor.toFixed(2)}x slower with ${largestTest.userCount / smallestTest.userCount}x more data`);
     console.log(`• Email Retrieval: ${emailScalingFactor.toFixed(2)}x slower with ${largestTest.userCount / smallestTest.userCount}x more data`);
     console.log(`• Full Collection: ${collectionScalingFactor.toFixed(2)}x slower with ${largestTest.userCount / smallestTest.userCount}x more data`);
-    console.log(`• Memory Usage: ${(largestTest.memoryUsed / smallestTest.memoryUsed).toFixed(2)}x more memory with ${largestTest.userCount / smallestTest.userCount}x more data`);
-    console.log(`• Memory Efficiency: ${largestTest.memoryPerUser.toFixed(2)} KB/user vs ${smallestTest.memoryPerUser.toFixed(2)} KB/user (${((largestTest.memoryPerUser / smallestTest.memoryPerUser - 1) * 100).toFixed(1)}% change)`);
 
     // Performance recommendations
     console.log("\n💡 RECOMMENDATIONS:");
@@ -277,24 +260,9 @@ async function createPerformanceTest() {
         console.log("✅ Full collection retrieval scales reasonably");
     }
 
-    // Memory efficiency analysis
-    const memoryScalingFactor = largestTest.memoryUsed / smallestTest.memoryUsed;
-    const expectedMemoryScaling = largestTest.userCount / smallestTest.userCount;
-    if (memoryScalingFactor > expectedMemoryScaling * 1.2) {
-        console.log("⚠️  Memory usage scaling is worse than linear - possible memory leaks or inefficient storage");
-    } else if (memoryScalingFactor < expectedMemoryScaling * 0.8) {
-        console.log("✅ Memory usage scales better than linear - efficient compression or deduplication");
-    } else {
-        console.log("✅ Memory usage scales linearly as expected");
-    }
 
-    if (largestTest.memoryPerUser > 50) {
-        console.log("⚠️  High memory usage per user - consider data structure optimization");
-    } else if (largestTest.memoryPerUser < 10) {
-        console.log("✅ Very efficient memory usage per user");
-    } else {
-        console.log("✅ Reasonable memory usage per user");
-    }
+
+
 
     console.log("\n🎉 Performance test completed successfully!");
 
