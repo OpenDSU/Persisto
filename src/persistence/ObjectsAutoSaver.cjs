@@ -85,6 +85,19 @@ function SimpleFSStorageStrategy() {
             return undefined;
         }
     }
+
+    this.listAllObjects = async function () {
+        try {
+            const files = await fs.readdir(process.env.PERSISTENCE_FOLDER);
+            return files.filter(file => {
+                // Filter out hidden files and directories
+                return !file.startsWith('.') && file.match(/^[a-zA-Z0-9_.]+$/);
+            });
+        } catch (error) {
+            console.error("Error listing objects in folder", process.env.PERSISTENCE_FOLDER, error);
+            return [];
+        }
+    }
 }
 
 function makeSpecialName(typeName, fieldName) {
@@ -125,11 +138,11 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
 
     this.getNextNumber = async function (itemType) {
         let systemObject = await loadWithCache("system");
-        if(!itemType){
+        if (!itemType) {
             itemType = "default";
         }
         let nextNumber = systemObject[itemType];
-        if(typeof nextNumber === "undefined"){
+        if (typeof nextNumber === "undefined") {
             nextNumber = 0;
         }
         nextNumber++;
@@ -158,6 +171,12 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
         cache[id] = obj;
         obj.id = id;
         setForSave(id);
+
+        // Immediately save to storage to ensure we have a baseline for future updates
+        await storageStrategy.storeObject(id, obj);
+        // Update timestamp cache to prevent reload from storage
+        timestampCache[id] = await storageStrategy.getTimestamp(id);
+
         return obj;
     }
     async function loadWithCache(id, allowMissing = false) {
@@ -204,12 +223,78 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
         setForSave(id);
     }
 
+    this.updateGroupingForFieldChange = async function (typeName, objId, fieldName, oldValue, newValue) {
+        let allGroupings = _groupings[typeName];
+        if (!allGroupings || allGroupings.length === 0) {
+            return;
+        }
+
+        for (let i = 0; i < allGroupings.length; i++) {
+            let groupingName = allGroupings[i].groupingName;
+            let groupingFieldName = allGroupings[i].fieldName;
+
+            // Only process if this grouping is for the field that changed
+            if (groupingFieldName === fieldName) {
+                let grouping = await loadWithCache(groupingName);
+
+                // Remove from old value's grouping (if oldValue exists)
+                if (oldValue !== undefined && grouping.items[oldValue]) {
+                    let index = grouping.items[oldValue].indexOf(objId);
+                    if (index !== -1) {
+                        grouping.items[oldValue].splice(index, 1);
+                        if (grouping.items[oldValue].length === 0) {
+                            delete grouping.items[oldValue];
+                        }
+                        setForSave(groupingName);
+                    }
+                }
+
+                // Add to new value's grouping (if newValue exists)
+                if (newValue !== undefined) {
+                    if (!grouping.items[newValue]) {
+                        grouping.items[newValue] = [];
+                    }
+                    if (grouping.items[newValue].indexOf(objId) === -1) {
+                        grouping.items[newValue].push(objId);
+                        setForSave(groupingName);
+                    }
+                }
+            }
+        }
+    }
+
     this.updateObject = async function (id, values) {
         let obj = await loadWithCache(id);
+
+        // get the original values from storage to detect changes
+        let originalObj = await storageStrategy.loadObject(id, true);
+        if (!originalObj) {
+            // If no storage version exists, we can't detect changes
+            // This can happen for objects created through alternative paths
+            originalObj = JSON.parse(JSON.stringify(obj));
+        }
+
+        // Check for grouping field changes by comparing with original storage values
         for (let key in values) {
+            if (originalObj[key] !== values[key]) {
+                // Check if this field change affects any groupings
+                for (let typeName in _groupings) {
+                    let allGroupings = _groupings[typeName];
+                    if (allGroupings && allGroupings.length > 0) {
+                        for (let i = 0; i < allGroupings.length; i++) {
+                            let fieldName = allGroupings[i].fieldName;
+                            if (fieldName === key) {
+                                let oldValue = originalObj[key];
+                                let newValue = values[key];
+                                await this.updateGroupingForFieldChange(typeName, id, fieldName, oldValue, newValue);
+                            }
+                        }
+                    }
+                }
+            }
             obj[key] = values[key];
         }
-        //console.debug(">>> Update object", id, "with", values, "Current cache is", cache);
+
         setForSave(id);
     }
 
@@ -332,7 +417,7 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
         await this.deleteIndexedField(id, typeName);
         delete cache[id];
         delete modified[id];
-        if(await storageStrategy.objectExists(id)){
+        if (await storageStrategy.objectExists(id)) {
             await storageStrategy.deleteObject(id);
         }
     }
@@ -340,7 +425,7 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
         let obj = await loadWithCache(objId);
         let myGroupings = _groupings[typeName];
         if (myGroupings && myGroupings.length !== 0) {
-            for(let i = 0; i < myGroupings.length; i++) {
+            for (let i = 0; i < myGroupings.length; i++) {
                 let groupingName = myGroupings[i].groupingName;
                 let fieldName = myGroupings[i].fieldName;
                 let grouping = await loadWithCache(groupingName);
@@ -381,8 +466,77 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
         let objId = makeSpecialName(typeName, fieldName);
         let obj = await loadWithCache(objId, true);
         if (!obj) {
-            await self.createObject(objId, { ids: {} });
+            obj = await self.createObject(objId, { ids: {} });
             setForSave(objId);
+        }
+
+        // Retroactively populate the index with existing objects
+        await populateIndexWithExistingObjects(typeName, fieldName, objId);
+    }
+
+    this.getAllObjectIds = async function () {
+        // Get all object IDs from both cache and disk storage
+        const diskObjectIds = await storageStrategy.listAllObjects();
+        const cacheObjectIds = Object.keys(cache);
+
+        // Combine both lists and remove duplicates
+        const allObjectIds = [...new Set([...diskObjectIds, ...cacheObjectIds])];
+        return allObjectIds;
+    }
+
+    async function populateIndexWithExistingObjects(typeName, fieldName, indexId) {
+        try {
+            // Get all object IDs from both cache and storage
+            const allObjectIds = await self.getAllObjectIds();
+
+            // Filter objects ignoring special objects (indexes, groupings, system)
+            const typeRelatedIds = allObjectIds.filter(id => {
+                // Skip special objects (indexes, groupings, system)
+                if (id === 'system') {
+                    return false;
+                }
+                // Skip special index/grouping objects (they have format like "user.email" - lowercase type.fieldname)
+                // These have exactly 2 parts when split by dot, and the first part is lowercase
+                const parts = id.split(".");
+                if (parts.length === 2 && parts[0] === parts[0].toLowerCase()) {
+                    return false;
+                }
+
+                return true;
+            });
+
+            let index = await loadWithCache(indexId);
+            let indexUpdated = false;
+
+            for (const objectId of typeRelatedIds) {
+                try {
+                    const obj = await loadWithCache(objectId, true);
+
+                    if (obj && obj[fieldName] !== undefined) {
+                        // Check if this object already exists in the index
+                        if (index.ids[obj[fieldName]] === undefined) {
+                            // Check for conflicts - if value already exists for different object
+                            const existingObjectId = index.ids[obj[fieldName]];
+                            if (existingObjectId && existingObjectId !== objectId) {
+                                console.warn(`Index conflict: Field ${fieldName} value ${obj[fieldName]} already exists for object ${existingObjectId}, skipping object ${objectId}`);
+                                continue;
+                            }
+                            index.ids[obj[fieldName]] = objectId;
+                            indexUpdated = true;
+
+                        }
+                    }
+                } catch (error) {
+                    // Skip objects that can't be loaded
+                    console.debug(`Skipping object ${objectId} during index population: ${error.message}`);
+                }
+            }
+
+            if (indexUpdated) {
+                setForSave(indexId);
+            }
+        } catch (error) {
+            console.error(`Error populating index ${typeName}.${fieldName}:`, error);
         }
     }
 
@@ -445,7 +599,6 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
     this.createGrouping = async function (groupingName, typeName, fieldName) {
         if (!_groupings[typeName]) {
             _groupings[typeName] = [];
-            //await $$.throwError(new Error("Grouping for type " + typeName + " already exists!"));
         }
         _groupings[typeName].push({ groupingName, fieldName });
 
@@ -455,6 +608,63 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
             setForSave(groupingName);
         }
 
+        // Retroactively populate the grouping with existing objects
+        await populateGroupingWithExistingObjects(typeName, fieldName, groupingName);
+    }
+
+    async function populateGroupingWithExistingObjects(typeName, fieldName, groupingName) {
+        try {
+            // Get all object IDs from both cache and storage
+            const allObjectIds = await self.getAllObjectIds();
+
+            // Filter objects that belong to this type
+            const typeRelatedIds = allObjectIds.filter(id => {
+                // Skip special objects (indexes, groupings, system)
+                if (id === 'system') {
+                    return false;
+                }
+                // Skip special index/grouping objects (they have format like "user.email" - type.fieldname)
+                // These have exactly 2 parts when split by dot, and the first part is lowercase
+                const parts = id.split(".");
+                if (parts.length === 2 && parts[0] === parts[0].toLowerCase()) {
+                    return false;
+                }
+                return true;
+            });
+
+            let grouping = await loadWithCache(groupingName);
+            let groupingUpdated = false;
+
+            for (const objectId of typeRelatedIds) {
+                try {
+                    const obj = await loadWithCache(objectId, true);
+                    if (obj && obj[fieldName] !== undefined) {
+                        const fieldValue = obj[fieldName];
+
+                        // Initialize the array for this field value if it doesn't exist
+                        if (!grouping.items[fieldValue]) {
+                            grouping.items[fieldValue] = [];
+                        }
+
+                        // Add the object ID if it's not already in the grouping
+                        if (grouping.items[fieldValue].indexOf(objectId) === -1) {
+                            grouping.items[fieldValue].push(objectId);
+                            groupingUpdated = true;
+
+                        }
+                    }
+                } catch (error) {
+                    // Skip objects that can't be loaded
+                    console.debug(`Skipping object ${objectId} during grouping population: ${error.message}`);
+                }
+            }
+
+            if (groupingUpdated) {
+                setForSave(groupingName);
+            }
+        } catch (error) {
+            console.error(`Error populating grouping ${groupingName}:`, error);
+        }
     }
 
     this.getGroupingByField = async function (groupingName, fieldValue) {
