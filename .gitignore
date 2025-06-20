@@ -1,3 +1,5 @@
 **/node_modules/**
 **/temp_persistence/**
+**/logs/**
+**/audit/**
 package-lock.json
