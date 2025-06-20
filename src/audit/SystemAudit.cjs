@@ -58,24 +58,40 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
             const yesterdayStr = yesterday.toISOString().split('T')[0];
             const yesterdayFilePath = path.join(auditDir, `audit_${yesterdayStr}.log`);
 
-            let previousDayFileContentHash = '';
+            let lastHashFromPreviousDay = '';
             try {
                 const content = await fs.readFile(yesterdayFilePath, 'utf8');
-                // Hash content regardless of whether it's empty or not, as long as it's read.
-                // This aligns with cryptoUtils.sha256Base64 handling empty strings.
-                previousDayFileContentHash = await cryptoUtils.sha256Base64(content);
+                const lines = content.split('\n').filter(line => line.trim() !== '');
+                
+                if (lines.length > 0) {
+                    // Get the last line and extract the hash (first part before semicolon)
+                    const lastLine = lines[lines.length - 1];
+                    const parts = lastLine.split('; ');
+                    if (parts.length > 0) {
+                        lastHashFromPreviousDay = parts[0];
+                        console.log(`[AUDIT_DEBUG] initDayAuditFile: Extracted last hash from previous day: ${lastHashFromPreviousDay}`);
+                    }
+                }
             } catch (err) {
                 if (err.code === 'ENOENT') {
                     console.log(`No previous day file (${yesterdayStr}) found. Starting new chain.`);
                 } else {
-                    console.log(`Error reading or hashing previous day file (${yesterdayStr}): ${err.message}. Starting new chain.`);
+                    console.log(`Error reading previous day file (${yesterdayStr}): ${err.message}. Starting new chain.`);
                 }
             }
 
-            if (previousDayFileContentHash) {
-                await fs.writeFile(auditFilePath, previousDayFileContentHash + '\n', 'utf8');
-                previousLineHash = previousDayFileContentHash;
-                console.log(`[AUDIT_DEBUG] initDayAuditFile (new file for ${today}): previousLineHash set from yesterday's hash: ${previousLineHash}`);
+            if (lastHashFromPreviousDay) {
+                // Create a proper audit entry for the previous day reference
+                const referenceDetails = `Reference to previous day: ${lastHashFromPreviousDay}`;
+                const referenceContent = `REFERENCE; ${referenceDetails};`;
+                const referenceContentHash = await cryptoUtils.sha256Base64(referenceContent);
+                const referenceLineHash = await cryptoUtils.sha256Base64(lastHashFromPreviousDay + referenceContentHash);
+                const timestamp = new Date().toISOString();
+                const referenceEntry = `${referenceLineHash}; [${timestamp}]; REFERENCE; ${referenceDetails};\n`;
+                
+                await fs.writeFile(auditFilePath, referenceEntry, 'utf8');
+                previousLineHash = referenceLineHash;
+                console.log(`[AUDIT_DEBUG] initDayAuditFile (new file for ${today}): Created reference entry with hash: ${referenceLineHash}`);
             } else {
                 await fs.writeFile(auditFilePath, '', 'utf8'); // Start with an empty file if no prev hash
                 previousLineHash = '';
