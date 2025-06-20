@@ -491,11 +491,15 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
 
             // Filter objects to only include those that belong to the specific type
             const typeRelatedIds = allObjectIds.filter(id => {
-                
+                // if id is lowercase, return false
+                if (id === id.toLowerCase()) {
+                    return false;
+                }
+
                 const typeNameUpper = typeName.toUpperCase();
                 const idUpper = id.toUpperCase();
 
-                // Check if ID starts with type name followed by a dot (e.g. "USER.123")
+                // Check if ID starts with type name followed by a dot (e.g., "TICKET.1", "USER.123")
                 if (idUpper.startsWith(typeNameUpper + ".")) {
                     return true;
                 }
@@ -622,7 +626,11 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
 
             // Filter objects that belong to this type
             const typeRelatedIds = allObjectIds.filter(id => {
-                
+                // if id is lowercase, return false
+                if (id === id.toLowerCase()) {
+                    return false;
+                }
+
                 const typeNameUpper = typeName.toUpperCase();
                 const idUpper = id.toUpperCase();
 
