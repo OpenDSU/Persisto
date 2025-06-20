@@ -489,20 +489,23 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
             // Get all object IDs from both cache and storage
             const allObjectIds = await self.getAllObjectIds();
 
-            // Filter objects ignoring special objects (indexes, groupings, system)
+            // Filter objects to only include those that belong to the specific type
             const typeRelatedIds = allObjectIds.filter(id => {
-                // Skip special objects (indexes, groupings, system)
-                if (id === 'system') {
-                    return false;
-                }
-                // Skip special index/grouping objects (they have format like "user.email" - lowercase type.fieldname)
-                // These have exactly 2 parts when split by dot, and the first part is lowercase
-                const parts = id.split(".");
-                if (parts.length === 2 && parts[0] === parts[0].toLowerCase()) {
-                    return false;
+                
+                const typeNameUpper = typeName.toUpperCase();
+                const idUpper = id.toUpperCase();
+
+                // Check if ID starts with type name followed by a dot (e.g. "USER.123")
+                if (idUpper.startsWith(typeNameUpper + ".")) {
+                    return true;
                 }
 
-                return true;
+                // Check if ID exactly matches type name (for singleton objects)
+                if (idUpper === typeNameUpper) {
+                    return true;
+                }
+
+                return false;
             });
 
             let index = await loadWithCache(indexId);
@@ -619,17 +622,21 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
 
             // Filter objects that belong to this type
             const typeRelatedIds = allObjectIds.filter(id => {
-                // Skip special objects (indexes, groupings, system)
-                if (id === 'system') {
-                    return false;
+                
+                const typeNameUpper = typeName.toUpperCase();
+                const idUpper = id.toUpperCase();
+
+                // Check if ID starts with type name followed by a dot (e.g. "USER.123")
+                if (idUpper.startsWith(typeNameUpper + ".")) {
+                    return true;
                 }
-                // Skip special index/grouping objects (they have format like "user.email" - type.fieldname)
-                // These have exactly 2 parts when split by dot, and the first part is lowercase
-                const parts = id.split(".");
-                if (parts.length === 2 && parts[0] === parts[0].toLowerCase()) {
-                    return false;
+
+                // Check if ID exactly matches type name (for singleton objects)
+                if (idUpper === typeNameUpper) {
+                    return true;
                 }
-                return true;
+
+                return false;
             });
 
             let grouping = await loadWithCache(groupingName);
