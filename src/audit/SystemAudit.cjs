@@ -372,6 +372,9 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
         }
         duringAuditFlush = true;
 
+        // Check if we need to handle day change before flushing
+        await checkAndUpdateDay();
+
         // Handle audit logs
         if (auditBuffer.length !== 0) {
             const auditFileName = getAuditLogFileName();
