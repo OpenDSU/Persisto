@@ -269,7 +269,7 @@ function AssetsMixin(smartStorage, systemAudit) {
     }
 
     this.deleteController = async function (objectId, controller) {
-        let controllers = smartStorage.getProperty(objectId, "controllers");
+        let controllers = await smartStorage.getProperty(objectId, "controllers");
         if (controllers === undefined) {
             console.debug("No controllers for object " + objectId);
             return;
