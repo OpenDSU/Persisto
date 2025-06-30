@@ -1,4 +1,37 @@
 import { promises as fs } from "fs";
+class MockSlowResponse {
+    constructor() {
+        this._promise = new Promise((resolve, reject) => {
+            this._resolve = resolve;
+            this._reject = reject;
+        });
+        this._progressData = [];
+    }
+
+    then(onFulfilled, onRejected) {
+        return this._promise.then(onFulfilled, onRejected);
+    }
+
+    catch(onRejected) {
+        return this._promise.catch(onRejected);
+    }
+
+    finally(onFinally) {
+        return this._promise.finally(onFinally);
+    }
+
+    async progress(progressData) {
+        this._progressData.push(progressData);
+    }
+
+    async end(result) {
+        this._resolve(result);
+    }
+
+    getProgressData() {
+        return this._progressData;
+    }
+}
 
 let plugins = {};
 
@@ -22,6 +55,13 @@ if (typeof globalThis.$$.loadPlugin === "undefined") {
         return plugins[pluginName];
     }
     $$.loadPlugin = loadPlugin;
+}
+
+if (typeof globalThis.$$.createSlowResponse === "undefined") {
+    function createSlowResponse() {
+        return new MockSlowResponse();
+    }
+    $$.createSlowResponse = createSlowResponse;
 }
 
 import path from 'path';
