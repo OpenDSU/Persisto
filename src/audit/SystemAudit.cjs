@@ -31,9 +31,6 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
 
     let auditProcessingPromise = Promise.resolve();
 
-    // All function definitions need to be available before being used in the initial promise chain.
-    // Function declarations are hoisted, so their order here is flexible.
-
     async function initDayAuditFile() {
         const today = new Date().toISOString().split('T')[0];
         const auditFilePath = path.join(auditDir, `audit_${today}.log`);
@@ -140,8 +137,12 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
         await fs.mkdir(auditDir, { recursive: true });
         await initDayAuditFile(); // Sets up previousLineHash for the first time
 
-        // Verify initial sync state
         await verifyPreviousHashSync();
+
+        if (!auditTimer) {
+            auditTimer = setInterval(() => this.auditFlush(), flushInterval);
+            console.log('[AUDIT_DEBUG] Started continuous audit timer for daily file creation');
+        }
     }).catch(err => {
         console.error("Critical error during SystemAudit initial setup (mkdir or initDayAuditFile):", err);
         // This instance might be in a bad state.
@@ -261,10 +262,6 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
 
             const entry = await prepareAuditEntry(auditType, details); // This reads and then updates previousLineHash
             auditBuffer.push(entry.hashEntry);
-
-            if (!auditTimer) {
-                auditTimer = setInterval(() => this.auditFlush(), flushInterval);
-            }
         }).catch(err => {
             console.error("Error in serialized audit processing chain (auditLog):", err);
             // Depending on the error, previousLineHash might be in an inconsistent state.
@@ -285,14 +282,8 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
     }
 
     this.userLog = function (userID, log) {
-        // if (arguments.length > 2) {
-        //     throw new Error("log() only takes two arguments: forUser and details");
-        // }
         let forUser = makeCSVCompliant(userID);
         const timestamp = makeCSVCompliant(new Date().toISOString());
-        /*const formattedDetails = Array.isArray(details)
-            ? makeCSVCompliant(details.join(" "))
-            : makeCSVCompliant(details);*/
 
         usersBuffer[forUser] = usersBuffer[forUser] || [];
         usersBuffer[forUser].push(`[${timestamp}]; ${log.trim()};`);
@@ -372,7 +363,6 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
         }
         duringAuditFlush = true;
 
-        // Check if we need to handle day change before flushing
         await checkAndUpdateDay();
 
         // Handle audit logs
@@ -383,12 +373,6 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
             auditBuffer = [];
             const auditData = currentAuditBuffer.join('\n') + '\n';
             await appendFile(auditFileName, auditData);
-        } else {
-            // If there's nothing to flush, clear the interval
-            if (auditTimer) {
-                clearInterval(auditTimer);
-                auditTimer = null;
-            }
         }
 
         duringAuditFlush = false;
@@ -550,10 +534,6 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
         }
 
         await this.flush(); // Ensure logs are flushed
-        // For auditFlush, it's more complex if auditLog is still queueing via auditProcessingPromise
-        // A robust shutdown would await auditProcessingPromise then auditFlush.
-        // For simplicity, current behavior is kept, but this could be a point of improvement.
-        // await auditProcessingPromise; // This might delay exit too much if chain is long
         await this.auditFlush();
     });
 
