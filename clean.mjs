@@ -20,11 +20,11 @@ class MockSlowResponse {
         return this._promise.finally(onFinally);
     }
 
-    async progress(progressData) {
+    progress(progressData) {
         this._progressData.push(progressData);
     }
 
-    async end(result) {
+    end(result) {
         this._resolve(result);
     }
 
