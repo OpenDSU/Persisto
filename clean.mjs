@@ -1,5 +1,5 @@
 import { promises as fs } from "fs";
-class MockSlowResponse {
+class MockObservableResponse {
     constructor() {
         this._promise = new Promise((resolve, reject) => {
             this._resolve = resolve;
@@ -22,8 +22,13 @@ class MockSlowResponse {
 
     progress(progressData) {
         this._progressData.push(progressData);
+        if (this._onProgress) {
+            this._onProgress(progressData);
+        }
     }
-
+    onProgress(callback) {
+        this._onProgress = callback;
+    }
     end(result) {
         this._resolve(result);
     }
@@ -57,11 +62,11 @@ if (typeof globalThis.$$.loadPlugin === "undefined") {
     $$.loadPlugin = loadPlugin;
 }
 
-if (typeof globalThis.$$.createSlowResponse === "undefined") {
-    function createSlowResponse() {
-        return new MockSlowResponse();
+if (typeof globalThis.$$.createObservableResponse === "undefined") {
+    function createObservableResponse() {
+        return new MockObservableResponse();
     }
-    $$.createSlowResponse = createSlowResponse;
+    $$.createObservableResponse = createObservableResponse;
 }
 
 import path from 'path';
