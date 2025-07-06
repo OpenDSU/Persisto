@@ -98,6 +98,10 @@ function AuditPlugin() {
     this.getLogsDates = async () => {
         return await systemAudit.listAuditDates();
     }
+
+    this.getPublicMethods = function () {
+        return [];
+    }
 }
 
 module.exports = {
