@@ -194,8 +194,8 @@ function AssetsMixin(smartStorage, systemAudit) {
     this.rewardUser = async function (userID, amount, reason) {
         amount = MathMoney.normalise(amount);
         //console.debug(">>>> Start rewarding user " + userID + " with " + amount + " points for " + reason);
-        await self.transferPoints(amount, "system", userID);
-        await systemAudit.smartLog(AUDIT_EVENTS.REWARD, {userID, amount, reason})
+        await self.transferPoints(amount, "system", userID, reason);
+     //   await systemAudit.smartLog(AUDIT_EVENTS.REWARD, {userID, amount, reason})
         //console.debug(">>>> Rewarded user " + userID + " with " + amount + " points for " + reason);
         return true;
     }

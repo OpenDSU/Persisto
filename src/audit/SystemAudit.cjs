@@ -3,7 +3,7 @@ const path = require('path');
 const cryptoUtils = require('./cryptoUtils.cjs');
 const AUDIT_EVENTS = require("./AuditEvents.cjs");
 const SYSLOG_EVENTS = require("./SyslogEvents.cjs");
-const { getShortName } = require("../persistence/utils.cjs");
+const {getShortName} = require("../persistence/utils.cjs");
 
 function SystemAudit(flushInterval = 1, logDir, auditDir) {
     if (!logDir) {
@@ -133,8 +133,8 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
 
     // INITIALIZATION CHAIN: Ensure directories exist and initial audit file is ready.
     auditProcessingPromise = auditProcessingPromise.then(async () => {
-        await fs.mkdir(logDir, { recursive: true });
-        await fs.mkdir(auditDir, { recursive: true });
+        await fs.mkdir(logDir, {recursive: true});
+        await fs.mkdir(auditDir, {recursive: true});
         await initDayAuditFile(); // Sets up previousLineHash for the first time
 
         await verifyPreviousHashSync();
@@ -298,6 +298,11 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
         switch (eventType) {
             case AUDIT_EVENTS.TRANSFER:
             case AUDIT_EVENTS.TRANSFER_LOCKED:
+                this.auditLog(AUDIT_EVENTS[eventType], details);
+                this.systemLog(AUDIT_EVENTS[eventType], details);
+                    this.userLog(details.toID, details.userLogToID || `You have received ${details.amount} ${details.amount === 1 ? 'point' : 'points'} ${details.reason}`);
+                this.userLog(details.fromID, details.userLogFromID || `You have transferred ${details.amount} ${details.amount === 1 ? 'point' : 'points'} ${details.reason}`);
+                break;
             case AUDIT_EVENTS.MINT:
                 this.auditLog(AUDIT_EVENTS[eventType], details);
                 this.systemLog(AUDIT_EVENTS[eventType], details);
@@ -394,7 +399,7 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
         }
 
         // Handle user logs
-        const currentUsersBuffer = { ...usersBuffer };
+        const currentUsersBuffer = {...usersBuffer};
         usersBuffer = {};
 
         const hasUserLogs = Object.keys(currentUsersBuffer).length > 0;
