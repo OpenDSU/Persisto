@@ -129,7 +129,7 @@ function Persisto(smartStorage, systemLogger, config) {
             }
 
             let id = await nextObjectID(itemType);
-            console.debug("Creating object of type " + itemType + " with id " + id);
+            //console.debug("Creating object of type " + itemType + " with id " + id);
             let obj = {};
             if (initialValues !== undefined) {
                 if (typeof initialValues !== "object") {
