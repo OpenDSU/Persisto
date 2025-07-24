@@ -3,6 +3,10 @@ let path = require("path");
 //let coreUtils = require("../util/sopUtil.js");
 const FILE_PATH_SEPARATOR = ".";
 
+function makeSpecialName(typeName, fieldName) {
+    return typeName + FILE_PATH_SEPARATOR + fieldName;
+}
+
 function SimpleFSStorageStrategy() {
     if (process.env.PERSISTENCE_FOLDER === undefined) {
         console.error("PERSISTENCE_FOLDER environment variable is not set. Please set it to the path where the logs should be stored. Defaults to './work_space_data/'");
@@ -11,12 +15,36 @@ function SimpleFSStorageStrategy() {
 
     fs.mkdir(process.env.PERSISTENCE_FOLDER, { recursive: true }).catch(console.error);
 
+    let cache = {};
+    let timestampCache = {};
+    let modified = {};
+    let _indexes = {};
+    let _groupings = {};
+    let alreadyInitialized = false;
+    let self = this;
+
     this.init = async function () {
+        if (alreadyInitialized) {
+            await $$.throwError(new Error("SimpleFSStorageStrategy already initialised!"));
+        }
+        alreadyInitialized = true;
+
         try {
             await fs.mkdir(process.env.PERSISTENCE_FOLDER, { recursive: true });
         } catch (error) {
             console.error("Error creating folder", process.env.PERSISTENCE_FOLDER, error);
         }
+
+        // Initialize system object
+        let systemObject = await this.loadObjectFromDisk("system", true);
+        if (!systemObject || !systemObject.currentIDNumber) {
+            systemObject = await this.createObject("system", { currentIDNumber: 1, currentClockTick: 0 });
+        }
+        cache["system"] = systemObject;
+    }
+
+    this.isInitialized = function () {
+        return alreadyInitialized;
     }
 
     function getFilePath(input) {
@@ -27,7 +55,7 @@ function SimpleFSStorageStrategy() {
         return path.join(process.env.PERSISTENCE_FOLDER, input);
     }
 
-    this.loadObject = async function (id, allowMissing) {
+    this.loadObjectFromDisk = async function (id, allowMissing) {
         try {
             if (!id) {
                 await $$.throwError("An object identifier is required for loading!" + " Provided id is: " + id);
@@ -44,7 +72,27 @@ function SimpleFSStorageStrategy() {
         }
     }
 
+    async function loadWithCache(id, allowMissing = false) {
+        if (!cache[id]) {
+            cache[id] = await self.loadObjectFromDisk(id, allowMissing);
+            timestampCache[id] = await self.getTimestamp(id);
+        } 
+
+        return cache[id];
+    }
+
+    function setForSave(id) {
+        modified[id] = true;
+    }
+
+    this.loadObject = async function (id, allowMissing = false) {
+        return await loadWithCache(id, allowMissing);
+    }
+
     this.objectExists = async function (id) {
+        if (cache[id]) {
+            return true;
+        }
         try {
             const filePath = getFilePath(id);
             await fs.access(filePath);
@@ -74,6 +122,7 @@ function SimpleFSStorageStrategy() {
             await $$.throwError(error, `Error deleting object [${id}] Error is:` + error.message);
         }
     }
+
     this.getTimestamp = async function (id) {
         try {
             const filePath = getFilePath(id);
@@ -98,43 +147,6 @@ function SimpleFSStorageStrategy() {
             return [];
         }
     }
-}
-
-function makeSpecialName(typeName, fieldName) {
-    return typeName + FILE_PATH_SEPARATOR + fieldName;
-}
-
-function AutoSaverPersistence(storageStrategy, periodicInterval) {
-    this.storageStrategy = storageStrategy;
-    let self = this;
-
-    if (!periodicInterval) {
-        periodicInterval = 5000;
-    }
-    let cache = {};
-    let timestampCache = {};
-    let modified = {};
-    let alreadyInitialized = false;
-
-    this.init = async function () {
-        if (alreadyInitialized) {
-            await $$.throwError(new Error("AutoSaverPersistence already initialised!"));
-        }
-        alreadyInitialized = true;
-        let systemObject = await storageStrategy.loadObject("system", true);
-        if (!systemObject || !systemObject.currentIDNumber) {
-            systemObject = await self.createObject("system", { currentIDNumber: 1, currentClockTick: 0 });
-        }
-        cache["system"] = systemObject;
-        //console.debug(">>> Initialised cache", cache);
-    }
-
-    /*this.getNextObjectId = function () {
-        let systemObject = cache["system"];
-        systemObject.currentIDNumber++;
-        setForSave("system");
-        return systemObject.currentIDNumber;
-    }*/
 
     this.getNextNumber = async function (itemType) {
         let systemObject = await loadWithCache("system");
@@ -152,7 +164,6 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
         return nextNumber;
     }
 
-
     this.getLogicalTimestamp = async function () {
         let systemObject = await loadWithCache("system");
         systemObject.currentClockTick++;
@@ -164,7 +175,7 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
         if (!id) {
             throw new Error("ID is required for creating an object!" + " provided ID: " + id);
         }
-        cache[id] = await storageStrategy.loadObject(id, true);
+        cache[id] = await this.loadObjectFromDisk(id, true);
         if (cache[id]) {
             await $$.throwError(new Error("Object with ID " + id + " already exists!"));
         }
@@ -172,54 +183,20 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
         obj.id = id;
         setForSave(id);
 
-        // Immediately save to storage to ensure we have a baseline for future updates
-        await storageStrategy.storeObject(id, obj);
-        // Update timestamp cache to prevent reload from storage
-        timestampCache[id] = await storageStrategy.getTimestamp(id);
+        await this.storeObject(id, obj);
+        timestampCache[id] = await this.getTimestamp(id);
 
         return obj;
-    }
-    async function loadWithCache(id, allowMissing = false) {
-        if (!cache[id]) {
-            cache[id] = await storageStrategy.loadObject(id, allowMissing);
-            timestampCache[id] = await storageStrategy.getTimestamp(id);
-        } else {
-            let currentTimestamp = await storageStrategy.getTimestamp(id);
-            if (currentTimestamp !== undefined && timestampCache[id] !== currentTimestamp) {
-                cache[id] = await storageStrategy.loadObject(id, allowMissing);
-                timestampCache[id] = currentTimestamp;
-            }
-        }
-
-        return cache[id];
-    }
-
-    function setForSave(id) {
-        //console.debug(">>> Set for save", id, "cache is", cache);
-        modified[id] = true;
-    }
-
-    this.loadObject = async function (id, allowMissing = false) {
-        return await loadWithCache(id, allowMissing);
-    }
-
-    this.objectExists = async function (id) {
-        if (cache[id]) {
-            return true;
-        }
-        return await storageStrategy.objectExists(id);
     }
 
     this.getProperty = async function (id, key) {
         let obj = await loadWithCache(id);
-        //console.debug(">>> Get property", key, "from", obj, "Current cache is", cache, "Value returned is ", obj[key]);
         return obj[key];
     }
 
     this.setProperty = this.updateProperty = async function (id, key, value) {
         let obj = await loadWithCache(id);
         obj[key] = value;
-        //console.debug(">>> Update property", key, "from", obj, "Current cache is", cache);
         setForSave(id);
     }
 
@@ -267,7 +244,7 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
         let obj = await loadWithCache(id);
 
         // get the original values from storage to detect changes
-        let originalObj = await storageStrategy.loadObject(id, true);
+        let originalObj = await this.loadObjectFromDisk(id, true);
         if (!originalObj) {
             // If no storage version exists, we can't detect changes
             // This can happen for objects created through alternative paths
@@ -298,9 +275,6 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
         setForSave(id);
     }
 
-    let _indexes = {};
-    let _groupings = {};
-
     this.preventIndexUpdate = async function (typeName, values, obj) {
         let indexFieldName = _indexes[typeName];
         if (typeof indexFieldName === "undefined") {
@@ -309,7 +283,6 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
         values[indexFieldName] = obj[indexFieldName];
         return values;
     }
-
 
     this.updateIndexedField = async function (id, typeName, fieldName, oldValue, newValue) {
         let obj = await loadWithCache(id);
@@ -362,6 +335,7 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
         //console.debug(">>> Checking if key exists in index", key, "for type", typeName, "index is", index);
         return index.ids[key] !== undefined;
     }
+
     this.getObjectsIndexValue = async function (typeName) {
         let indexFieldName = _indexes[typeName];
         if (!indexFieldName) {
@@ -393,6 +367,7 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
             }
         }
     }
+
     this.deleteIndexedField = async function (objId, typeName) {
         let obj = await loadWithCache(objId);
         if (!obj) {
@@ -413,14 +388,17 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
             setForSave(indexId);
         }
     }
-    this.deleteObject = async function (typeName, id) {
+
+    this.deleteObjectWithType = async function (typeName, id) {
         await this.deleteIndexedField(id, typeName);
+        await this.removeFromGrouping(typeName, id);
         delete cache[id];
         delete modified[id];
-        if (await storageStrategy.objectExists(id)) {
-            await storageStrategy.deleteObject(id);
+        if (await this.objectExists(id)) {
+            await this.deleteObject(id);
         }
     }
+
     this.removeFromGrouping = async function (typeName, objId) {
         let obj = await loadWithCache(objId);
         let myGroupings = _groupings[typeName];
@@ -466,7 +444,7 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
         let objId = makeSpecialName(typeName, fieldName);
         let obj = await loadWithCache(objId, true);
         if (!obj) {
-            obj = await self.createObject(objId, { ids: {} });
+            await this.createObject(objId, { ids: {} });
             setForSave(objId);
         }
 
@@ -476,7 +454,7 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
 
     this.getAllObjectIds = async function () {
         // Get all object IDs from both cache and disk storage
-        const diskObjectIds = await storageStrategy.listAllObjects();
+        const diskObjectIds = await this.listAllObjects();
         const cacheObjectIds = Object.keys(cache);
 
         // Combine both lists and remove duplicates
@@ -553,6 +531,7 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
         let obj = await loadWithCache(objId);
         return Object.values(obj.ids);
     }
+
     this.getAllObjectsData = async function (typeName, sortBy, start, end, descending) {
         let ids = await this.getAllObjects(typeName);
         return await this.loadObjectsRange(ids, sortBy, start, end, descending);
@@ -598,9 +577,10 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
         let index = await loadWithCache(objId);
         let indexValueAsId = index.ids[fieldValue];
         if (indexValueAsId === undefined) {
-            return undefined;
+            return undefined;    // Periodic saving functionality
+
         }
-        return await self.loadObject(indexValueAsId, allowMissing);
+        return await this.loadObject(indexValueAsId, allowMissing);
     }
 
     this.createGrouping = async function (groupingName, typeName, fieldName) {
@@ -611,7 +591,7 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
 
         let obj = await loadWithCache(groupingName, true);
         if (!obj) {
-            await self.createObject(groupingName, { items: {} });
+            await this.createObject(groupingName, { items: {} });
             setForSave(groupingName);
         }
 
@@ -696,24 +676,156 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
         return await this.loadObjectsRange(ids, sortBy, start, end, descending);
     }
 
-    async function saveAll() {
+    this.saveAll = async function() {
         for (let id in modified) {
             delete modified[id];
-            await storageStrategy.storeObject(id, cache[id]);
+            await this.storeObject(id, cache[id]);
+            timestampCache[id] = await this.getTimestamp(id);
         }
     }
 
+    this.forceSave = async function () {
+        await this.saveAll();
+    }
+
+    this.getModified = function() {
+        return Object.keys(modified);
+    }
+}
+
+function AutoSaverPersistence(storageStrategy, periodicInterval) {
+    this.storageStrategy = storageStrategy;
+
+    if (!periodicInterval) {
+        periodicInterval = 5000;
+    }
+
+    this.init = async function () {
+        if (storageStrategy.init && (!storageStrategy.isInitialized || !storageStrategy.isInitialized())) {
+            await storageStrategy.init();
+        }
+    }
+
+    // Delegate all operations to the storage strategy
+    this.getNextNumber = async function (itemType) {
+        return await storageStrategy.getNextNumber(itemType);
+    }
+
+    this.getLogicalTimestamp = async function () {
+        return await storageStrategy.getLogicalTimestamp();
+    }
+
+    this.createObject = async function (id, obj) {
+        return await storageStrategy.createObject(id, obj);
+    }
+
+    this.loadObject = async function (id, allowMissing = false) {
+        return await storageStrategy.loadObject(id, allowMissing);
+    }
+
+    this.objectExists = async function (id) {
+        return await storageStrategy.objectExists(id);
+    }
+
+    this.getProperty = async function (id, key) {
+        return await storageStrategy.getProperty(id, key);
+    }
+
+    this.setProperty = this.updateProperty = async function (id, key, value) {
+        return await storageStrategy.setProperty(id, key, value);
+    }
+
+    this.updateGroupingForFieldChange = async function (typeName, objId, fieldName, oldValue, newValue) {
+        return await storageStrategy.updateGroupingForFieldChange(typeName, objId, fieldName, oldValue, newValue);
+    }
+
+    this.updateObject = async function (id, values) {
+        return await storageStrategy.updateObject(id, values);
+    }
+
+    this.preventIndexUpdate = async function (typeName, values, obj) {
+        return await storageStrategy.preventIndexUpdate(typeName, values, obj);
+    }
+
+    this.updateIndexedField = async function (id, typeName, fieldName, oldValue, newValue) {
+        return await storageStrategy.updateIndexedField(id, typeName, fieldName, oldValue, newValue);
+    }
+
+    this.keyExistInIndex = async function (typeName, key) {
+        return await storageStrategy.keyExistInIndex(typeName, key);
+    }
+
+    this.getObjectsIndexValue = async function (typeName) {
+        return await storageStrategy.getObjectsIndexValue(typeName);
+    }
+
+    this.updateGrouping = async function (typeName, objId) {
+        return await storageStrategy.updateGrouping(typeName, objId);
+    }
+
+    this.deleteIndexedField = async function (objId, typeName) {
+        return await storageStrategy.deleteIndexedField(objId, typeName);
+    }
+
+    this.deleteObject = async function (typeName, id) {
+        return await storageStrategy.deleteObjectWithType(typeName, id);
+    }
+
+    this.removeFromGrouping = async function (typeName, objId) {
+        return await storageStrategy.removeFromGrouping(typeName, objId);
+    }
+
+    this.hasCreationConflicts = async function (typeName, values) {
+        return await storageStrategy.hasCreationConflicts(typeName, values);
+    }
+
+    this.createIndex = async function (typeName, fieldName) {
+        return await storageStrategy.createIndex(typeName, fieldName);
+    }
+
+    this.getAllObjectIds = async function () {
+        return await storageStrategy.getAllObjectIds();
+    }
+
+    this.getAllObjects = async function (typeName) {
+        return await storageStrategy.getAllObjects(typeName);
+    }
+
+    this.getAllObjectsData = async function (typeName, sortBy, start, end, descending) {
+        return await storageStrategy.getAllObjectsData(typeName, sortBy, start, end, descending);
+    }
+
+    this.loadObjectsRange = async function (ids, sortBy, start, end, descending) {
+        return await storageStrategy.loadObjectsRange(ids, sortBy, start, end, descending);
+    }
+
+    this.getObjectByField = async function (typeName, fieldName, fieldValue, allowMissing) {
+        return await storageStrategy.getObjectByField(typeName, fieldName, fieldValue, allowMissing);
+    }
+
+    this.createGrouping = async function (groupingName, typeName, fieldName) {
+        return await storageStrategy.createGrouping(groupingName, typeName, fieldName);
+    }
+
+    this.getGroupingByField = async function (groupingName, fieldValue) {
+        return await storageStrategy.getGroupingByField(groupingName, fieldValue);
+    }
+
+    this.getGroupingObjectsByField = async function (groupingName, fieldValue, sortBy, start, end, descending) {
+        return await storageStrategy.getGroupingObjectsByField(groupingName, fieldValue, sortBy, start, end, descending);
+    }
+
     let intervalId = setInterval(async function () {
-        await saveAll();
+        await storageStrategy.saveAll();
     }, periodicInterval);
 
     this.shutDown = async function () {
         clearInterval(intervalId);
-        await saveAll();
+        await storageStrategy.saveAll();
     }
 
     this.forceSave = async function () {
-        await saveAll();
+        await storageStrategy.forceSave();
     }
 }
 
