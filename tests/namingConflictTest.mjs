@@ -67,6 +67,8 @@ if (object !== sameObject) {
 await persistoInstance.shutDown();
 if (failedChecks.length === 0) {
     console.log("Naming conflict test passed");
+    process.exit(0);
 } else {
     console.log("Naming conflict test failed", failedChecks);
+    process.exit(1);
 }

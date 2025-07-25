@@ -21,35 +21,35 @@ try {
     await persistoInstance.createUser({ name: "Bob", email: "bob@example.com" });
 
     // Now create an index on email field - this should retroactively index existing users
-    await persistoInstance.createIndex("userInfo", "email");
+    await persistoInstance.createIndex("user", "email");
 
     // Test that we can find pre-existing users by their email
-    let michael = await persistoInstance.getUserInfoByEmail("michael@example.com");
+    let michael = await persistoInstance.getUserByEmail("michael@example.com");
     if (!michael || michael.name !== "Michael") {
         console.error("Expected to find Michael by email, got: ", michael);
         process.exit(1);
     }
 
-    let john = await persistoInstance.getUserInfoByEmail("john@example.com");
+    let john = await persistoInstance.getUserByEmail("john@example.com");
     if (!john || john.name !== "John") {
         console.error("Expected to find John by email, got: ", john);
         process.exit(1);
     }
 
-    let jane = await persistoInstance.getUserInfoByEmail("jane@example.com");
+    let jane = await persistoInstance.getUserByEmail("jane@example.com");
     if (!jane || jane.name !== "Jane") {
         console.error("Expected to find Jane by email, got: ", jane);
         process.exit(1);
     }
 
-    let bob = await persistoInstance.getUserInfoByEmail("bob@example.com");
+    let bob = await persistoInstance.getUserByEmail("bob@example.com");
     if (!bob || bob.name !== "Bob") {
         console.error("Expected to find Bob by email, got: ", bob);
         process.exit(1);
     }
 
     // Test that non-existent email returns undefined
-    let nonExistent = await persistoInstance.getUserInfoByEmail("nonexistent@example.com");
+    let nonExistent = await persistoInstance.getUserByEmail("nonexistent@example.com");
     if (nonExistent !== undefined) {
         console.error("Expected undefined for non-existent email, got: ", nonExistent);
         process.exit(1);

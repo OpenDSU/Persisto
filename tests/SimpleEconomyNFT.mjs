@@ -83,3 +83,4 @@ console.log("<<<<<<< End Checking logs...");
 
 console.assert(failedChecks.length === 0, "Test failed", failedChecks);
 console.log("Test ended successfully");
+process.exit(0);
