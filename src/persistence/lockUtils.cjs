@@ -33,8 +33,7 @@ function LockManager() {
 
     this.createLock = async (lockName) => {
         if (!isEnabled) {
-            console.debug(`Lock system disabled (LOCK_FOLDER not set), skipping lock creation: ${lockName}`);
-            return true; // Return success to maintain compatibility
+            return true;
         }
 
         const lockFile = getLockFilePath(lockName);
@@ -45,13 +44,11 @@ function LockManager() {
         };
 
         try {
-            // Check if lock already exists and is still valid
             if (await this.isLockActive(lockName)) {
                 throw new Error(`Lock '${lockName}' is already active`);
             }
 
             await fs.writeFile(lockFile, JSON.stringify(lockData, null, 2), 'utf8');
-            console.debug(`Created lock: ${lockName}`);
             return true;
         } catch (error) {
             if (error.message.includes('already active')) {
@@ -63,17 +60,14 @@ function LockManager() {
     }
 
     this.removeLock = async (lockName) => {
-        console.log('removeLock', lockName);
         if (!isEnabled) {
-            console.debug(`Lock system disabled (LOCK_FOLDER not set), skipping lock removal: ${lockName}`);
-            return true; // Return success to maintain compatibility
+            return true;
         }
 
         const lockFile = getLockFilePath(lockName);
 
         try {
             await fs.unlink(lockFile);
-            console.debug(`Removed lock: ${lockName}`);
             return true;
         } catch (error) {
             if (error.code !== 'ENOENT') {
@@ -84,9 +78,8 @@ function LockManager() {
     }
 
     this.isLockActive = async (lockName) => {
-        console.log('isLockActive', lockName);
         if (!isEnabled) {
-            return false; // No locks when system is disabled
+            return false;
         }
 
         const lockFile = getLockFilePath(lockName);
@@ -95,7 +88,6 @@ function LockManager() {
             const lockData = JSON.parse(await fs.readFile(lockFile, 'utf8'));
             const now = Date.now();
 
-            // Check if lock is stale (older than timeout)
             if (now - lockData.timestamp > lockTimeout) {
                 console.warn(`Removing stale lock: ${lockName}`);
                 await removeLock(lockName);
@@ -105,7 +97,7 @@ function LockManager() {
             return true;
         } catch (error) {
             if (error.code === 'ENOENT') {
-                return false; // Lock file doesn't exist
+                return false;
             }
             console.error(`Error checking lock '${lockName}':`, error);
             return false;
@@ -113,16 +105,14 @@ function LockManager() {
     }
 
     this.hasAnyLocks = async () => {
-        console.log('hasAnyLocks');
         if (!isEnabled) {
-            return false; // No locks when system is disabled
+            return false;
         }
 
         try {
             const files = await fs.readdir(lockFolder);
             const lockFiles = files.filter(file => file.endsWith('.lock'));
 
-            // Check if any locks are still active (not stale)
             for (const file of lockFiles) {
                 const lockName = path.basename(file, '.lock');
                 if (await isLockActive(lockName)) {
@@ -138,9 +128,8 @@ function LockManager() {
     }
 
     this.listActiveLocks = async () => {
-        console.log('listActiveLocks');
         if (!isEnabled) {
-            return []; // Empty list when system is disabled
+            return [];
         }
 
         try {
@@ -163,10 +152,8 @@ function LockManager() {
     }
 
     this.cleanupStaleLocks = async () => {
-        console.log('cleanupStaleLocks');
         if (!isEnabled) {
-            console.log('cleanupStaleLocks');
-            return; // No cleanup needed when system is disabled
+            return;
         }
 
         try {
