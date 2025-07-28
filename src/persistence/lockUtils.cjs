@@ -115,7 +115,7 @@ function LockManager() {
 
             for (const file of lockFiles) {
                 const lockName = path.basename(file, '.lock');
-                if (await isLockActive(lockName)) {
+                if (await this.isLockActive(lockName)) {
                     return true;
                 }
             }
@@ -139,7 +139,7 @@ function LockManager() {
 
             for (const file of lockFiles) {
                 const lockName = path.basename(file, '.lock');
-                if (await isLockActive(lockName)) {
+                if (await this.isLockActive(lockName)) {
                     activeLocks.push(lockName);
                 }
             }
@@ -162,8 +162,7 @@ function LockManager() {
 
             for (const file of lockFiles) {
                 const lockName = path.basename(file, '.lock');
-                // isLockActive will automatically remove stale locks
-                await isLockActive(lockName);
+                await this.isLockActive(lockName);
             }
         } catch (error) {
             console.error('Error cleaning up stale locks:', error);
