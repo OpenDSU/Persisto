@@ -18,7 +18,6 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
         }
     }
 
-    // Delegate all operations to the storage strategy
     this.getNextNumber = async function (itemType) {
         return await storageStrategy.getNextNumber(itemType);
     }
@@ -132,35 +131,21 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
         let lockCreated = false;
 
         try {
-            // Check if critical section is already locked (backup in progress)
             if (useLocking && await lockManager.isLockActive(lockName)) {
-                console.debug('Skipping save - critical section locked (backup in progress)');
                 return;
             }
 
-            // Create lock before saving only if locking is enabled
             if (useLocking) {
                 await lockManager.createLock(lockName);
                 lockCreated = true;
-                console.debug('Created critical section lock for persistence save');
             }
 
-            // Perform the actual save
             await storageStrategy.saveAll();
-
-            if (useLocking) {
-                console.debug('Periodic save completed successfully (with locking)');
-            } else {
-                console.debug('Periodic save completed successfully');
-            }
-
         } catch (error) {
             console.error('Error during periodic save:', error);
         } finally {
-            // Always remove the lock if it was created
             if (lockCreated && useLocking) {
                 await lockManager.removeLock(lockName);
-                console.debug('Removed critical section lock');
             }
         }
     }
@@ -168,7 +153,6 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
     async function performSimpleSave() {
         try {
             await storageStrategy.saveAll();
-            console.debug('Periodic save completed successfully');
         } catch (error) {
             console.error('Error during periodic save:', error);
         }
@@ -199,7 +183,6 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
 module.exports = {
     getAutoSaverPersistence: async function (storageStrategy) {
         if (!storageStrategy) {
-            console.debug("No storage strategy provided, using SimpleFSStorageStrategy");
             storageStrategy = require("./strategies/SimpleFSStorageStrategy.cjs").getSimpleFSStorageStrategy();
             await storageStrategy.init();
         }
