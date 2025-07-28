@@ -1,5 +1,8 @@
+const { getLockManager } = require('./lockUtils.cjs');
+
 function AutoSaverPersistence(storageStrategy, periodicInterval) {
-    this.storageStrategy = storageStrategy;
+    const useLocking = !!process.env.LOCK_FOLDER;
+    const lockManager = getLockManager();
 
     if (!periodicInterval) {
         periodicInterval = 5000;
@@ -8,6 +11,10 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
     this.init = async function () {
         if (storageStrategy.init && (!storageStrategy.isInitialized || !storageStrategy.isInitialized())) {
             await storageStrategy.init();
+        }
+
+        if (useLocking) {
+            await lockManager.cleanupStaleLocks();
         }
     }
 
@@ -120,17 +127,72 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
         return await storageStrategy.getGroupingObjectsByField(groupingName, fieldValue, sortBy, start, end, descending);
     }
 
-    let intervalId = setInterval(async function () {
-        await storageStrategy.saveAll();
-    }, periodicInterval);
+    async function performSaveWithLock() {
+        const lockName = 'critical_section';
+        let lockCreated = false;
+
+        try {
+            // Check if critical section is already locked (backup in progress)
+            if (useLocking && await lockManager.isLockActive(lockName)) {
+                console.debug('Skipping save - critical section locked (backup in progress)');
+                return;
+            }
+
+            // Create lock before saving only if locking is enabled
+            if (useLocking) {
+                await lockManager.createLock(lockName);
+                lockCreated = true;
+                console.debug('Created critical section lock for persistence save');
+            }
+
+            // Perform the actual save
+            await storageStrategy.saveAll();
+
+            if (useLocking) {
+                console.debug('Periodic save completed successfully (with locking)');
+            } else {
+                console.debug('Periodic save completed successfully');
+            }
+
+        } catch (error) {
+            console.error('Error during periodic save:', error);
+        } finally {
+            // Always remove the lock if it was created
+            if (lockCreated && useLocking) {
+                await lockManager.removeLock(lockName);
+                console.debug('Removed critical section lock');
+            }
+        }
+    }
+
+    async function performSimpleSave() {
+        try {
+            await storageStrategy.saveAll();
+            console.debug('Periodic save completed successfully');
+        } catch (error) {
+            console.error('Error during periodic save:', error);
+        }
+    }
+
+    const saveFunction = useLocking ? performSaveWithLock : performSimpleSave;
+    let intervalId = setInterval(saveFunction, periodicInterval);
 
     this.shutDown = async function () {
         clearInterval(intervalId);
-        await storageStrategy.saveAll();
+
+        if (useLocking) {
+            await performSaveWithLock();
+        } else {
+            await performSimpleSave();
+        }
     }
 
     this.forceSave = async function () {
-        await storageStrategy.forceSave();
+        if (useLocking) {
+            await performSaveWithLock();
+        } else {
+            await performSimpleSave();
+        }
     }
 }
 
