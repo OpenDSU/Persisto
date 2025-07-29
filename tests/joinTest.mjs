@@ -11,7 +11,7 @@ const DEFAULT_AUDIT = {
     }
 };
 
-async function runSimplifiedSyncTest() {
+async function runJoinTest() {
     console.log("=== Ultra-Simplified Sync Test ===");
     console.log("Field names exactly match type names - no pluralization!");
 
@@ -158,4 +158,4 @@ async function runSimplifiedSyncTest() {
     }
 }
 
-runSimplifiedSyncTest().catch(console.error); 
+runJoinTest().catch(console.error); 
