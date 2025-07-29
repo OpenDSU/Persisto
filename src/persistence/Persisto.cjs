@@ -30,6 +30,10 @@ function Persisto(smartStorage, systemLogger, config) {
                 if (obj === undefined) {
                     await $$.throwError("Cannot update object of type " + configKey + " with ID " + objectID + ". Object not found");
                 }
+
+                // Store old data for join sync comparison
+                let oldData = JSON.parse(JSON.stringify(obj));
+
                 for (let key in values) {
                     if (key === "id") {
                         continue;
@@ -38,6 +42,10 @@ function Persisto(smartStorage, systemLogger, config) {
                 }
                 await smartStorage.updateObject(obj.id, obj);
                 await smartStorage.updateGrouping(configKey, obj.id);
+
+                // Sync joins with array fields
+                await self.syncJoinsWithArrays(configKey, obj.id, obj, oldData);
+
                 return obj;
             });
 
@@ -102,13 +110,13 @@ function Persisto(smartStorage, systemLogger, config) {
     async function getObjectFromIdOrKey(itemType, objectID, allowMissing = false) {
         if (await smartStorage.objectExists(objectID)) {
             let prefix = itemType.slice(0, 6).toUpperCase();
-                if(!objectID || !objectID.startsWith(prefix)){
-                    if( allowMissing){
-                        return undefined;
-                    } else {
-                        await $$.throwError("Object ID " + objectID + " does not start with expected prefix " + prefix + ". Cannot get object of type " + itemType);
-                    }
+            if (!objectID || !objectID.startsWith(prefix)) {
+                if (allowMissing) {
+                    return undefined;
+                } else {
+                    await $$.throwError("Object ID " + objectID + " does not start with expected prefix " + prefix + ". Cannot get object of type " + itemType);
                 }
+            }
             return await smartStorage.loadObject(objectID);
         }
         // try to treat the objectID as index value
@@ -144,6 +152,10 @@ function Persisto(smartStorage, systemLogger, config) {
             await systemLogger.smartLog(AUDIT_EVENTS.CREATE_OBJECT, { itemType, id })
             await smartStorage.updateIndexedField(obj.id, itemType, undefined, undefined, undefined);
             await smartStorage.updateGrouping(itemType, obj.id);
+
+            // Sync joins with array fields
+            await self.syncJoinsWithArrays(itemType, obj.id, obj);
+
             return obj;
         }
     }
@@ -185,9 +197,9 @@ function Persisto(smartStorage, systemLogger, config) {
                 let obj = await getObjectFromIdOrKey(typeName, objectId);
                 return await smartStorage.updateIndexedField(obj.id, typeName, fieldName, obj[fieldName], value);
             });
-        addFunctionToSelf("getEvery",  upCaseFirstLetter(typeName), upCaseFirstLetter(fieldName),
+        addFunctionToSelf("getEvery", upCaseFirstLetter(typeName), upCaseFirstLetter(fieldName),
             async function () {
-                    return await smartStorage.getObjectsIndexValue(typeName);
+                return await smartStorage.getObjectsIndexValue(typeName);
             });
         return await smartStorage.createIndex(typeName, fieldName);
     }
@@ -202,12 +214,138 @@ function Persisto(smartStorage, systemLogger, config) {
         return await smartStorage.createGrouping(groupingName, typeName, fieldName);
     }
 
+    this.createJoin = async function (joinName, leftType, rightType) {
+        if (!self._joinConfigs) {
+            self._joinConfigs = {};
+        }
+
+        let syncFields = {
+            leftField: rightType,
+            rightField: leftType
+        };
+
+        self._joinConfigs[joinName] = {
+            leftType,
+            rightType,
+            syncFields
+        };
+
+        let leftToRightMethodName = "get" + upCaseFirstLetter(rightType) + "sFromJoinFor" + upCaseFirstLetter(leftType);
+        self[leftToRightMethodName] = async function (leftId, sortBy, start = 0, end, descending = false) {
+            return await smartStorage.getJoinedObjectsData(joinName, leftId, "left_to_right", sortBy, start, end, descending);
+        };
+
+        let rightToLeftMethodName = "get" + upCaseFirstLetter(leftType) + "sFromJoinFor" + upCaseFirstLetter(rightType);
+        self[rightToLeftMethodName] = async function (rightId, sortBy, start = 0, end, descending = false) {
+            return await smartStorage.getJoinedObjectsData(joinName, rightId, "right_to_left", sortBy, start, end, descending);
+        };
+
+        let leftToRightIdsMethodName = "get" + upCaseFirstLetter(rightType) + "IdsFromJoinFor" + upCaseFirstLetter(leftType);
+        self[leftToRightIdsMethodName] = async function (leftId) {
+            return await smartStorage.getJoinedObjects(joinName, leftId, "left_to_right");
+        };
+
+        let rightToLeftIdsMethodName = "get" + upCaseFirstLetter(leftType) + "IdsFromJoinFor" + upCaseFirstLetter(rightType);
+        self[rightToLeftIdsMethodName] = async function (rightId) {
+            return await smartStorage.getJoinedObjects(joinName, rightId, "right_to_left");
+        };
+
+        let removeJoinMethodName = "remove" + upCaseFirstLetter(leftType) + "FromJoinWith" + upCaseFirstLetter(rightType);
+        self[removeJoinMethodName] = async function (leftId, rightId) {
+            return await smartStorage.removeJoin(joinName, leftId, rightId);
+        };
+
+        console.debug(`Creating join ${joinName}: ${leftType} <-> ${rightType}`);
+        console.debug(`Auto-sync fields configured for ${joinName}:`, syncFields);
+
+        return await smartStorage.createJoin(joinName, leftType, rightType);
+    }
+
+    this.removeJoin = async function (joinName, leftId, rightId) {
+        return await smartStorage.removeJoin(joinName, leftId, rightId);
+    }
+
+    this.getJoinedObjects = async function (joinName, objectId, direction, sortBy, start, end, descending) {
+        return await smartStorage.getJoinedObjectsData(joinName, objectId, direction, sortBy, start, end, descending);
+    }
+
     this.getLogicalTimestamp = async function () {
         return await smartStorage.getLogicalTimestamp();
     }
 
-}
+    this.syncJoinsWithArrays = async function (objectType, objectId, objectData, oldData = null) {
+        if (!self._joinConfigs) {
+            return;
+        }
 
+        for (let joinName in self._joinConfigs) {
+            let joinConfig = self._joinConfigs[joinName];
+            let { leftType, rightType, syncFields } = joinConfig;
+
+            if (objectType !== leftType && objectType !== rightType) {
+                continue;
+            }
+
+            if (!syncFields) {
+                continue;
+            }
+
+            try {
+                await self.processSyncFields(joinName, objectType, objectId, objectData, oldData, joinConfig);
+            } catch (error) {
+                console.error(`Error syncing arrays for join ${joinName}:`, error);
+            }
+        }
+    }
+
+    this.processSyncFields = async function (joinName, objectType, objectId, objectData, oldData, joinConfig) {
+        let { leftType, rightType, syncFields } = joinConfig;
+        let { leftField, rightField } = syncFields;
+
+        let currentArray, fieldName;
+
+        if (objectType === leftType && leftField) {
+            currentArray = objectData[leftField] || [];
+            fieldName = leftField;
+        } else if (objectType === rightType && rightField) {
+            currentArray = objectData[rightField] || [];
+            fieldName = rightField;
+        } else {
+            return;
+        }
+
+        let oldArray = [];
+        if (oldData && oldData[fieldName]) {
+            oldArray = Array.isArray(oldData[fieldName]) ? oldData[fieldName] : [];
+        }
+
+        let currentSet = new Set(currentArray);
+        let oldSet = new Set(oldArray);
+
+        let additions = currentArray.filter(id => !oldSet.has(id));
+        let removals = oldArray.filter(id => !currentSet.has(id));
+
+        for (let targetId of additions) {
+            if (objectType === leftType) {
+                await smartStorage.addJoin(joinName, objectId, targetId);
+                console.debug(`Synced join: Added ${leftType} ${objectId} to ${rightType} ${targetId}`);
+            } else {
+                await smartStorage.addJoin(joinName, targetId, objectId);
+                console.debug(`Synced join: Added ${leftType} ${targetId} to ${rightType} ${objectId}`);
+            }
+        }
+
+        for (let targetId of removals) {
+            if (objectType === leftType) {
+                await smartStorage.removeJoin(joinName, objectId, targetId);
+                console.debug(`Synced join: Removed ${leftType} ${objectId} from ${rightType} ${targetId}`);
+            } else {
+                await smartStorage.removeJoin(joinName, targetId, objectId);
+                console.debug(`Synced join: Removed ${leftType} ${targetId} from ${rightType} ${objectId}`);
+            }
+        }
+    }
+}
 
 module.exports = {
     initialisePersisto: async function (elementStorageStrategy, logger) {

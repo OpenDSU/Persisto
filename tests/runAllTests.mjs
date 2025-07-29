@@ -23,6 +23,7 @@ const tests = [
     './smokeTest.mjs',
     './typesPersistence.mjs',
     './userIdTest.mjs',
+    './joinTest.mjs',
 ];
 
 import fs from 'node:fs/promises';

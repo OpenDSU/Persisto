@@ -126,6 +126,30 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
         return await storageStrategy.getGroupingObjectsByField(groupingName, fieldValue, sortBy, start, end, descending);
     }
 
+    this.createJoin = async function (joinName, leftType, rightType) {
+        return await storageStrategy.createJoin(joinName, leftType, rightType);
+    }
+
+    this.addJoin = async function (joinName, leftId, rightId) {
+        return await storageStrategy.addJoin(joinName, leftId, rightId);
+    }
+
+    this.removeJoin = async function (joinName, leftId, rightId) {
+        return await storageStrategy.removeJoin(joinName, leftId, rightId);
+    }
+
+    this.getJoinedObjects = async function (joinName, objectId, direction) {
+        return await storageStrategy.getJoinedObjects(joinName, objectId, direction);
+    }
+
+    this.getJoinedObjectsData = async function (joinName, objectId, direction, sortBy, start, end, descending) {
+        return await storageStrategy.getJoinedObjectsData(joinName, objectId, direction, sortBy, start, end, descending);
+    }
+
+    this.removeObjectFromAllJoins = async function (objectId) {
+        return await storageStrategy.removeObjectFromAllJoins(objectId);
+    }
+
     async function performSaveWithLock() {
         const lockName = 'critical_section';
         let lockCreated = false;

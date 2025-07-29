@@ -20,6 +20,7 @@ function SimpleFSStorageStrategy() {
     let modified = {};
     let _indexes = {};
     let _groupings = {};
+    let _joins = {};
     let alreadyInitialized = false;
     let self = this;
 
@@ -392,6 +393,7 @@ function SimpleFSStorageStrategy() {
     this.deleteObjectWithType = async function (typeName, id) {
         await this.deleteIndexedField(id, typeName);
         await this.removeFromGrouping(typeName, id);
+        await this.removeObjectFromAllJoins(id);
         delete cache[id];
         delete modified[id];
         if (await this.objectExists(id)) {
@@ -690,6 +692,152 @@ function SimpleFSStorageStrategy() {
 
     this.getModified = function () {
         return Object.keys(modified);
+    }
+
+    this.createJoin = async function (joinName, leftType, rightType) {
+        if (_joins[joinName]) {
+            await $$.throwError(new Error("Join " + joinName + " already exists!"));
+        }
+
+        _joins[joinName] = {
+            leftType: leftType,
+            rightType: rightType,
+            leftToRight: joinName + "_left_to_right",
+            rightToLeft: joinName + "_right_to_left"
+        };
+
+        // Create storage objects for both directions
+        let leftToRightId = _joins[joinName].leftToRight;
+        let rightToLeftId = _joins[joinName].rightToLeft;
+
+        let leftToRightObj = await loadWithCache(leftToRightId, true);
+        if (!leftToRightObj) {
+            await this.createObject(leftToRightId, { joins: {} });
+        }
+
+        let rightToLeftObj = await loadWithCache(rightToLeftId, true);
+        if (!rightToLeftObj) {
+            await this.createObject(rightToLeftId, { joins: {} });
+        }
+
+        await populateJoinWithExistingObjects(joinName, leftType, rightType);
+    }
+
+    this.addJoin = async function (joinName, leftId, rightId) {
+        if (!_joins[joinName]) {
+            await $$.throwError(new Error("Join " + joinName + " does not exist!"));
+        }
+
+        let config = _joins[joinName];
+        let leftToRight = await loadWithCache(config.leftToRight);
+        let rightToLeft = await loadWithCache(config.rightToLeft);
+
+        if (!leftToRight.joins[leftId]) {
+            leftToRight.joins[leftId] = [];
+        }
+        if (leftToRight.joins[leftId].indexOf(rightId) === -1) {
+            leftToRight.joins[leftId].push(rightId);
+            setForSave(config.leftToRight);
+        }
+
+        if (!rightToLeft.joins[rightId]) {
+            rightToLeft.joins[rightId] = [];
+        }
+        if (rightToLeft.joins[rightId].indexOf(leftId) === -1) {
+            rightToLeft.joins[rightId].push(leftId);
+            setForSave(config.rightToLeft);
+        }
+    }
+
+    this.removeJoin = async function (joinName, leftId, rightId) {
+        if (!_joins[joinName]) {
+            await $$.throwError(new Error("Join " + joinName + " does not exist!"));
+        }
+
+        let config = _joins[joinName];
+        let leftToRight = await loadWithCache(config.leftToRight);
+        let rightToLeft = await loadWithCache(config.rightToLeft);
+
+        if (leftToRight.joins[leftId]) {
+            let index = leftToRight.joins[leftId].indexOf(rightId);
+            if (index !== -1) {
+                leftToRight.joins[leftId].splice(index, 1);
+                if (leftToRight.joins[leftId].length === 0) {
+                    delete leftToRight.joins[leftId];
+                }
+                setForSave(config.leftToRight);
+            }
+        }
+
+        if (rightToLeft.joins[rightId]) {
+            let index = rightToLeft.joins[rightId].indexOf(leftId);
+            if (index !== -1) {
+                rightToLeft.joins[rightId].splice(index, 1);
+                if (rightToLeft.joins[rightId].length === 0) {
+                    delete rightToLeft.joins[rightId];
+                }
+                setForSave(config.rightToLeft);
+            }
+        }
+    }
+
+    this.getJoinedObjects = async function (joinName, objectId, direction) {
+        if (!_joins[joinName]) {
+            await $$.throwError(new Error("Join " + joinName + " does not exist!"));
+        }
+
+        let config = _joins[joinName];
+        let mappingId;
+
+        if (direction === "left_to_right") {
+            mappingId = config.leftToRight;
+        } else if (direction === "right_to_left") {
+            mappingId = config.rightToLeft;
+        } else {
+            await $$.throwError(new Error("Invalid direction. Use 'left_to_right' or 'right_to_left'"));
+        }
+
+        let mapping = await loadWithCache(mappingId);
+        return mapping.joins[objectId] || [];
+    }
+
+    this.getJoinedObjectsData = async function (joinName, objectId, direction, sortBy, start, end, descending) {
+        let joinedIds = await this.getJoinedObjects(joinName, objectId, direction);
+        if (joinedIds.length === 0) {
+            return [];
+        }
+        return await this.loadObjectsRange(joinedIds, sortBy, start, end, descending);
+    }
+
+    this.removeObjectFromAllJoins = async function (objectId) {
+        for (let joinName in _joins) {
+            let config = _joins[joinName];
+
+            let leftToRight = await loadWithCache(config.leftToRight);
+            if (leftToRight.joins[objectId]) {
+                let joinedIds = [...leftToRight.joins[objectId]];
+                for (let joinedId of joinedIds) {
+                    await this.removeJoin(joinName, objectId, joinedId);
+                }
+            }
+
+            // Check and remove from right side
+            let rightToLeft = await loadWithCache(config.rightToLeft);
+            if (rightToLeft.joins[objectId]) {
+                let joinedIds = [...rightToLeft.joins[objectId]];
+                for (let joinedId of joinedIds) {
+                    await this.removeJoin(joinName, joinedId, objectId);
+                }
+            }
+        }
+    }
+
+    async function populateJoinWithExistingObjects(joinName, leftType, rightType) {
+        try {
+            console.debug(`Join ${joinName} created between ${leftType} and ${rightType}`);
+        } catch (error) {
+            console.error(`Error populating join ${joinName}:`, error);
+        }
     }
 }
 
