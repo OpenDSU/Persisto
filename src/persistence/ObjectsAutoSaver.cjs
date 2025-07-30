@@ -150,6 +150,10 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
         return await storageStrategy.removeObjectFromAllJoins(objectId);
     }
 
+    this.select = async function (typeName, filters = {}, sortBy = null, start = 0, end = null, descending = false) {
+        return await storageStrategy.select(typeName, filters, sortBy, start, end, descending);
+    }
+
     async function performSaveWithLock() {
         const lockName = 'critical_section';
         let lockCreated = false;

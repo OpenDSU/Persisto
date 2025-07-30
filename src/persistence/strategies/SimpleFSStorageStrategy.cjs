@@ -832,6 +832,222 @@ function SimpleFSStorageStrategy() {
         }
     }
 
+    this.select = async function (typeName, filters = {}, sortBy, start = 0, end, descending = false) {
+        try {
+            // Get all objects of the specified type
+            let ids = await this.getAllObjects(typeName);
+            let objects = await Promise.all(ids.map(id => this.loadObject(id)));
+
+            // Apply filters
+            if (filters && Object.keys(filters).length > 0) {
+                objects = this.applyFilters(objects, filters);
+            }
+
+            // Apply sorting
+            if (sortBy) {
+                objects = this.applySorting(objects, sortBy, descending);
+            }
+
+            // Apply pagination
+            if (end === null) {
+                end = objects.length;
+            }
+
+            return {
+                objects: objects.slice(start, end),
+                totalCount: objects.length,
+                filteredCount: objects.length,
+                pagination: {
+                    start: start,
+                    end: Math.min(end, objects.length),
+                    hasMore: end < objects.length,
+                    totalPages: end > start ? Math.ceil(objects.length / (end - start)) : 1
+                }
+            };
+        } catch (error) {
+            console.error(`Error in select for type ${typeName}:`, error);
+            throw error;
+        }
+    }
+
+    this.applyFilters = function (objects, filters) {
+        return objects.filter(obj => {
+            return this.evaluateFilters(obj, filters);
+        });
+    }
+
+    this.evaluateFilters = function (obj, filters) {
+        // Handle logical operators
+        if (filters.$and && Array.isArray(filters.$and)) {
+            return filters.$and.every(condition => this.evaluateFilters(obj, condition));
+        }
+
+        if (filters.$or && Array.isArray(filters.$or)) {
+            return filters.$or.some(condition => this.evaluateFilters(obj, condition));
+        }
+
+        if (filters.$not) {
+            return !this.evaluateFilters(obj, filters.$not);
+        }
+
+        // Handle field-based filters
+        for (let field in filters) {
+            if (field.startsWith('$')) {
+                continue; // Skip logical operators already handled
+            }
+
+            let fieldValue = this.getNestedProperty(obj, field);
+            let condition = filters[field];
+
+            if (!this.evaluateFieldCondition(fieldValue, condition)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    this.getNestedProperty = function (obj, path) {
+        return path.split('.').reduce((current, key) => {
+            return current && current[key] !== undefined ? current[key] : undefined;
+        }, obj);
+    }
+
+    this.evaluateFieldCondition = function (fieldValue, condition) {
+        // Direct equality check
+        if (typeof condition !== 'object' || condition === null) {
+            return this.compareValues(fieldValue, condition, '$eq');
+        }
+
+        // Handle operator-based conditions
+        for (let operator in condition) {
+            let expectedValue = condition[operator];
+
+            if (!this.compareValues(fieldValue, expectedValue, operator)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    this.compareValues = function (fieldValue, expectedValue, operator) {
+        switch (operator) {
+            case '$eq':
+                return fieldValue === expectedValue;
+            case '$ne':
+                return fieldValue !== expectedValue;
+            case '$gt':
+                return fieldValue > expectedValue;
+            case '$gte':
+                return fieldValue >= expectedValue;
+            case '$lt':
+                return fieldValue < expectedValue;
+            case '$lte':
+                return fieldValue <= expectedValue;
+            case '$in':
+                return Array.isArray(expectedValue) && expectedValue.includes(fieldValue);
+            case '$nin':
+                return Array.isArray(expectedValue) && !expectedValue.includes(fieldValue);
+            case '$contains':
+                return typeof fieldValue === 'string' && fieldValue.includes(expectedValue);
+            case '$startsWith':
+                return typeof fieldValue === 'string' && fieldValue.startsWith(expectedValue);
+            case '$endsWith':
+                return typeof fieldValue === 'string' && fieldValue.endsWith(expectedValue);
+            case '$regex':
+                try {
+                    let regex = new RegExp(expectedValue);
+                    return typeof fieldValue === 'string' && regex.test(fieldValue);
+                } catch {
+                    return false;
+                }
+            case '$exists':
+                return expectedValue ? fieldValue !== undefined : fieldValue === undefined;
+            case '$type':
+                return typeof fieldValue === expectedValue;
+            case '$size':
+                return Array.isArray(fieldValue) && fieldValue.length === expectedValue;
+            default:
+                console.warn(`Unknown operator: ${operator}`);
+                return false;
+        }
+    }
+
+    this.applySorting = function (objects, sortBy, descending = false) {
+        // Support multiple sort fields
+        if (typeof sortBy === 'string') {
+            sortBy = [{ field: sortBy, descending: descending }];
+        } else if (!Array.isArray(sortBy)) {
+            sortBy = [sortBy];
+        }
+
+        return objects.sort((a, b) => {
+            for (let sortSpec of sortBy) {
+                let field = typeof sortSpec === 'string' ? sortSpec : sortSpec.field;
+                let desc = typeof sortSpec === 'object' ? sortSpec.descending : descending;
+
+                let aVal = this.getNestedProperty(a, field);
+                let bVal = this.getNestedProperty(b, field);
+
+                let result = this.compareForSort(aVal, bVal);
+
+                if (result !== 0) {
+                    return desc ? -result : result;
+                }
+            }
+            return 0;
+        });
+    }
+
+    this.compareForSort = function (aVal, bVal) {
+        // Handle null/undefined values
+        const aInvalid = aVal === undefined || aVal === null;
+        const bInvalid = bVal === undefined || bVal === null;
+
+        if (aInvalid && bInvalid) return 0;
+        if (aInvalid) return 1;
+        if (bInvalid) return -1;
+
+        // Handle different types
+        if (typeof aVal !== typeof bVal) {
+            return typeof aVal > typeof bVal ? 1 : -1;
+        }
+
+        // String comparison
+        if (typeof aVal === 'string' && typeof bVal === 'string') {
+            return aVal.localeCompare(bVal);
+        }
+
+        // Numeric comparison
+        if (typeof aVal === 'number' && typeof bVal === 'number') {
+            return aVal - bVal;
+        }
+
+        // Date comparison
+        if (aVal instanceof Date && bVal instanceof Date) {
+            return aVal.getTime() - bVal.getTime();
+        }
+
+        // Boolean comparison
+        if (typeof aVal === 'boolean' && typeof bVal === 'boolean') {
+            return aVal === bVal ? 0 : (aVal ? 1 : -1);
+        }
+
+        // Array comparison (by length)
+        if (Array.isArray(aVal) && Array.isArray(bVal)) {
+            return aVal.length - bVal.length;
+        }
+
+        // Object comparison (by string representation)
+        if (typeof aVal === 'object' && typeof bVal === 'object') {
+            return JSON.stringify(aVal).localeCompare(JSON.stringify(bVal));
+        }
+
+        // Fallback comparison
+        return String(aVal).localeCompare(String(bVal));
+    }
+
     async function populateJoinWithExistingObjects(joinName, leftType, rightType) {
         try {
             console.debug(`Join ${joinName} created between ${leftType} and ${rightType}`);

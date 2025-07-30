@@ -78,6 +78,40 @@ function Persisto(smartStorage, systemLogger, config) {
         }
     }
 
+    this.select = async function (typeName, filters = {}, options = {}) {
+        // Extract options with defaults
+        let {
+            sortBy,
+            start = 0,
+            end,
+            descending = false,
+            pageSize
+        } = options;
+
+        // Handle pageSize for easier pagination
+        if (pageSize && !end) {
+            end = start + pageSize;
+        }
+
+        try {
+            let result = await smartStorage.select(typeName, filters, sortBy, start, end, descending);
+
+            // Add type information to result
+            result.typeName = typeName;
+            result.query = {
+                filters: filters,
+                sortBy: sortBy,
+                start: start,
+                end: end,
+                descending: descending
+            };
+
+            return result;
+        } catch (error) {
+            await $$.throwError(error, `Error selecting objects of type ${typeName}`, "Filters:", JSON.stringify(filters), "Options:", JSON.stringify(options));
+        }
+    }
+
     const upCaseFirstLetter = name => name.replace(/^./, name[0].toUpperCase());
 
     function addFunctionToSelf(methodCategory, selfTypeName, name, func) {
@@ -197,6 +231,7 @@ function Persisto(smartStorage, systemLogger, config) {
                 let obj = await getObjectFromIdOrKey(typeName, objectId);
                 return await smartStorage.updateIndexedField(obj.id, typeName, fieldName, obj[fieldName], value);
             });
+
         addFunctionToSelf("getEvery", upCaseFirstLetter(typeName), upCaseFirstLetter(fieldName),
             async function () {
                 return await smartStorage.getObjectsIndexValue(typeName);
