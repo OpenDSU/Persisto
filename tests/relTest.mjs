@@ -11,7 +11,7 @@ const DEFAULT_AUDIT = {
     }
 };
 
-async function runJoinTest() {
+async function runRelTest() {
     console.log("=== Ultra-Simplified Sync Test ===");
     console.log("Field names exactly match type names - no pluralization!");
 
@@ -39,13 +39,13 @@ async function runJoinTest() {
         console.log("\n1. Creating joins with ultra-simple field names...");
 
         // Field names match type names exactly!
-        await persisto.createJoin("userChatrooms", "user", "chatroom");
+        await persisto.createRel("userChatrooms", "user", "chatroom");
         // Creates: user.chatroom and chatroom.user
 
-        await persisto.createJoin("userProjects", "user", "project");
+        await persisto.createRel("userProjects", "user", "project");
         // Creates: user.project and project.user
 
-        await persisto.createJoin("projectTags", "project", "tag");
+        await persisto.createRel("projectTags", "project", "tag");
         // Creates: project.tag and tag.project
 
         console.log("\n2. Creating objects with simple field names...");
@@ -84,8 +84,8 @@ async function runJoinTest() {
             chatroom: [general.id]  // Single field name
         });
 
-        let aliceChats = await persisto.getChatroomsFromJoinForUser(alice.id);
-        let generalUsers = await persisto.getUsersFromJoinForChatroom(general.id);
+        let aliceChats = await persisto.getChatroomsFromRelForUser(alice.id);
+        let generalUsers = await persisto.getUsersFromRelForChatroom(general.id);
 
         console.log(`Alice's chatrooms: ${aliceChats.map(c => c.name)}`);
         console.log(`General's users: ${generalUsers.map(u => u.displayName)}`);
@@ -97,8 +97,8 @@ async function runJoinTest() {
             project: [website.id]  // Single field name
         });
 
-        let aliceProjects = await persisto.getProjectsFromJoinForUser(alice.id);
-        let websiteUsers = await persisto.getUsersFromJoinForProject(website.id);
+        let aliceProjects = await persisto.getProjectsFromRelForUser(alice.id);
+        let websiteUsers = await persisto.getUsersFromRelForProject(website.id);
 
         console.log(`Alice's projects: ${aliceProjects.map(p => p.name)}`);
         console.log(`Website's users: ${websiteUsers.map(u => u.displayName)}`);
@@ -110,8 +110,8 @@ async function runJoinTest() {
             tag: [javascript.id]  // Single field name
         });
 
-        let websiteTags = await persisto.getTagsFromJoinForProject(website.id);
-        let javascriptProjects = await persisto.getProjectsFromJoinForTag(javascript.id);
+        let websiteTags = await persisto.getTagsFromRelForProject(website.id);
+        let javascriptProjects = await persisto.getProjectsFromRelForTag(javascript.id);
 
         console.log(`Website's tags: ${websiteTags.map(t => t.name)}`);
         console.log(`JavaScript tag's projects: ${javascriptProjects.map(p => p.name)}`);
@@ -122,8 +122,8 @@ async function runJoinTest() {
             user: [alice.id]
         });
 
-        let aliceChats2 = await persisto.getChatroomsFromJoinForUser(alice.id);
-        let generalUsers2 = await persisto.getUsersFromJoinForChatroom(general.id);
+        let aliceChats2 = await persisto.getChatroomsFromRelForUser(alice.id);
+        let generalUsers2 = await persisto.getUsersFromRelForChatroom(general.id);
 
         console.log(`Alice's chatrooms (after chatroom update): ${aliceChats2.map(c => c.name)}`);
         console.log(`General's users (after chatroom update): ${generalUsers2.map(u => u.displayName)}`);
@@ -145,7 +145,7 @@ async function runJoinTest() {
             chatroom: [general.id]
         });
 
-        let finalGeneralUsers = await persisto.getUsersFromJoinForChatroom(general.id);
+        let finalGeneralUsers = await persisto.getUsersFromRelForChatroom(general.id);
         console.log(`Final general users: ${finalGeneralUsers.map(u => u.displayName)}`);
     } catch (error) {
         console.error("❌ Test failed:", error);
@@ -158,4 +158,4 @@ async function runJoinTest() {
     }
 }
 
-runJoinTest().catch(console.error); 
+runRelTest().catch(console.error); 

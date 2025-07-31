@@ -393,7 +393,7 @@ function SimpleFSStorageStrategy() {
     this.deleteObjectWithType = async function (typeName, id) {
         await this.deleteIndexedField(id, typeName);
         await this.removeFromGrouping(typeName, id);
-        await this.removeObjectFromAllJoins(id);
+        await this.removeObjectFromAllRels(id);
         delete cache[id];
         delete modified[id];
         if (await this.objectExists(id)) {
@@ -694,9 +694,9 @@ function SimpleFSStorageStrategy() {
         return Object.keys(modified);
     }
 
-    this.createJoin = async function (joinName, leftType, rightType) {
+    this.createRel = async function (joinName, leftType, rightType) {
         if (_joins[joinName]) {
-            await $$.throwError(new Error("Join " + joinName + " already exists!"));
+            await $$.throwError(new Error("Rel " + joinName + " already exists!"));
         }
 
         _joins[joinName] = {
@@ -720,12 +720,12 @@ function SimpleFSStorageStrategy() {
             await this.createObject(rightToLeftId, { joins: {} });
         }
 
-        await populateJoinWithExistingObjects(joinName, leftType, rightType);
+        await populateRelWithExistingObjects(joinName, leftType, rightType);
     }
 
-    this.addJoin = async function (joinName, leftId, rightId) {
+    this.addRel = async function (joinName, leftId, rightId) {
         if (!_joins[joinName]) {
-            await $$.throwError(new Error("Join " + joinName + " does not exist!"));
+            await $$.throwError(new Error("Rel " + joinName + " does not exist!"));
         }
 
         let config = _joins[joinName];
@@ -749,9 +749,9 @@ function SimpleFSStorageStrategy() {
         }
     }
 
-    this.removeJoin = async function (joinName, leftId, rightId) {
+    this.removeRel = async function (joinName, leftId, rightId) {
         if (!_joins[joinName]) {
-            await $$.throwError(new Error("Join " + joinName + " does not exist!"));
+            await $$.throwError(new Error("Rel " + joinName + " does not exist!"));
         }
 
         let config = _joins[joinName];
@@ -781,9 +781,9 @@ function SimpleFSStorageStrategy() {
         }
     }
 
-    this.getJoinedObjects = async function (joinName, objectId, direction) {
+    this.getReledObjects = async function (joinName, objectId, direction) {
         if (!_joins[joinName]) {
-            await $$.throwError(new Error("Join " + joinName + " does not exist!"));
+            await $$.throwError(new Error("Rel " + joinName + " does not exist!"));
         }
 
         let config = _joins[joinName];
@@ -801,15 +801,15 @@ function SimpleFSStorageStrategy() {
         return mapping.joins[objectId] || [];
     }
 
-    this.getJoinedObjectsData = async function (joinName, objectId, direction, sortBy, start, end, descending) {
-        let joinedIds = await this.getJoinedObjects(joinName, objectId, direction);
+    this.getReledObjectsData = async function (joinName, objectId, direction, sortBy, start, end, descending) {
+        let joinedIds = await this.getReledObjects(joinName, objectId, direction);
         if (joinedIds.length === 0) {
             return [];
         }
         return await this.loadObjectsRange(joinedIds, sortBy, start, end, descending);
     }
 
-    this.removeObjectFromAllJoins = async function (objectId) {
+    this.removeObjectFromAllRels = async function (objectId) {
         for (let joinName in _joins) {
             let config = _joins[joinName];
 
@@ -817,7 +817,7 @@ function SimpleFSStorageStrategy() {
             if (leftToRight.joins[objectId]) {
                 let joinedIds = [...leftToRight.joins[objectId]];
                 for (let joinedId of joinedIds) {
-                    await this.removeJoin(joinName, objectId, joinedId);
+                    await this.removeRel(joinName, objectId, joinedId);
                 }
             }
 
@@ -826,7 +826,7 @@ function SimpleFSStorageStrategy() {
             if (rightToLeft.joins[objectId]) {
                 let joinedIds = [...rightToLeft.joins[objectId]];
                 for (let joinedId of joinedIds) {
-                    await this.removeJoin(joinName, joinedId, objectId);
+                    await this.removeRel(joinName, joinedId, objectId);
                 }
             }
         }
@@ -1048,9 +1048,9 @@ function SimpleFSStorageStrategy() {
         return String(aVal).localeCompare(String(bVal));
     }
 
-    async function populateJoinWithExistingObjects(joinName, leftType, rightType) {
+    async function populateRelWithExistingObjects(joinName, leftType, rightType) {
         try {
-            console.debug(`Join ${joinName} created between ${leftType} and ${rightType}`);
+            console.debug(`Rel ${joinName} created between ${leftType} and ${rightType}`);
         } catch (error) {
             console.error(`Error populating join ${joinName}:`, error);
         }

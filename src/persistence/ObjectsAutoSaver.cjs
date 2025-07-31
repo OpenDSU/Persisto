@@ -126,28 +126,28 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
         return await storageStrategy.getGroupingObjectsByField(groupingName, fieldValue, sortBy, start, end, descending);
     }
 
-    this.createJoin = async function (joinName, leftType, rightType) {
-        return await storageStrategy.createJoin(joinName, leftType, rightType);
+    this.createRel = async function (joinName, leftType, rightType) {
+        return await storageStrategy.createRel(joinName, leftType, rightType);
     }
 
-    this.addJoin = async function (joinName, leftId, rightId) {
-        return await storageStrategy.addJoin(joinName, leftId, rightId);
+    this.addRel = async function (joinName, leftId, rightId) {
+        return await storageStrategy.addRel(joinName, leftId, rightId);
     }
 
-    this.removeJoin = async function (joinName, leftId, rightId) {
-        return await storageStrategy.removeJoin(joinName, leftId, rightId);
+    this.removeRel = async function (joinName, leftId, rightId) {
+        return await storageStrategy.removeRel(joinName, leftId, rightId);
     }
 
-    this.getJoinedObjects = async function (joinName, objectId, direction) {
-        return await storageStrategy.getJoinedObjects(joinName, objectId, direction);
+    this.getReledObjects = async function (joinName, objectId, direction) {
+        return await storageStrategy.getReledObjects(joinName, objectId, direction);
     }
 
-    this.getJoinedObjectsData = async function (joinName, objectId, direction, sortBy, start, end, descending) {
-        return await storageStrategy.getJoinedObjectsData(joinName, objectId, direction, sortBy, start, end, descending);
+    this.getReledObjectsData = async function (joinName, objectId, direction, sortBy, start, end, descending) {
+        return await storageStrategy.getReledObjectsData(joinName, objectId, direction, sortBy, start, end, descending);
     }
 
-    this.removeObjectFromAllJoins = async function (objectId) {
-        return await storageStrategy.removeObjectFromAllJoins(objectId);
+    this.removeObjectFromAllRels = async function (objectId) {
+        return await storageStrategy.removeObjectFromAllRels(objectId);
     }
 
     this.select = async function (typeName, filters = {}, sortBy = null, start = 0, end = null, descending = false) {
