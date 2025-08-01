@@ -6,6 +6,8 @@ import { } from "../clean.mjs";
 await $$.clean();
 
 import { initialisePersisto } from '../index.cjs';
+import { deepEqual } from './testUtils.js';
+
 let checksFailed = [];
 async function typesPersistence() {
     let persistoInstance = await initialisePersisto();
@@ -28,13 +30,13 @@ async function typesPersistence() {
     let object1 = await persistoInstance.createUserStatus({ email: "email1", info: { name: "name1" } });
     let sameObject = await persistoInstance.getUserStatus(object1.id);
 
-    if (object1 !== sameObject) {
+    if (!deepEqual(object1, sameObject)) {
         throw new Error("Object creation assertion failed");
     }
 
     let sameObjectByIndex = await persistoInstance.getUserStatus("email1");
 
-    if (object1 !== sameObjectByIndex) {
+    if (!deepEqual(object1, sameObjectByIndex)) {
         throw new Error("Same object by index assertion failed");
     }
 

@@ -5,13 +5,10 @@ await $$.clean();
 import { initialisePersisto } from '../../index.cjs';
 
 // Performance test configuration
-const TEST_SIZE = parseInt(process.env.TEST_SIZE) || 50000; // Total objects to create
 const TEST_SIZES = process.env.QUICK_TEST === 'true'
     ? [1000, 5000, 10000]
-    : [1000, 5000, 10000, 25000, 50000]; // Array of test sizes to run
-const SAMPLE_INTERVAL = parseInt(process.env.SAMPLE_INTERVAL) || 1000; // Sample I/O times every N objects
+    : [1000, 5000, 10000, 25000, 50000, 100000, 250000, 500000, 1000000]; // Array of test sizes to run
 const OBJECT_SIZE_BYTES = parseInt(process.env.OBJECT_SIZE) || 1024; // Default 1KB object size
-const RETRIEVAL_SAMPLES = 100; // Number of random retrievals to test at each sample point
 const RETRIEVAL_TESTS_PER_SIZE = process.env.QUICK_TEST === 'true' ? 25 : 100; // Number of retrieval tests per size
 
 /**
@@ -31,59 +28,6 @@ function getMemoryUsage() {
 function formatMemorySize(bytes) {
     const mb = bytes / (1024 * 1024);
     return `${mb.toFixed(2)}MB`;
-}
-
-/**
- * Measures disk write time for a single object creation
- */
-async function measureDiskWrite(persisto, userData, objectCount) {
-    const startTime = performance.now();
-    const user = await persisto.createUser(userData);
-    const endTime = performance.now();
-
-    return {
-        duration: endTime - startTime,
-        objectId: user.id,
-        objectCount: objectCount,
-        timestamp: Date.now()
-    };
-}
-
-/**
- * Measures disk read time for a single object load
- */
-async function measureDiskRead(persisto, objectId, objectCount) {
-    const startTime = performance.now();
-    const user = await persisto.getUser(objectId);
-    const endTime = performance.now();
-
-    return {
-        duration: endTime - startTime,
-        objectId: objectId,
-        objectCount: objectCount,
-        timestamp: Date.now(),
-        found: !!user
-    };
-}
-
-/**
- * Calculate statistics for an array of measurements
- */
-function calculateStats(measurements) {
-    if (measurements.length === 0) return null;
-
-    const durations = measurements.map(m => m.duration);
-    durations.sort((a, b) => a - b);
-
-    return {
-        count: measurements.length,
-        avg: durations.reduce((sum, d) => sum + d, 0) / durations.length,
-        min: durations[0],
-        max: durations[durations.length - 1],
-        median: durations[Math.floor(durations.length / 2)],
-        p95: durations[Math.floor(durations.length * 0.95)],
-        p99: durations[Math.floor(durations.length * 0.99)]
-    };
 }
 
 function calculateMemoryDelta(beforeMem, afterMem) {
@@ -148,17 +92,29 @@ async function createPerformanceTest() {
     console.log("=====================================");
     console.log(`Object size: ${OBJECT_SIZE_BYTES} bytes (${(OBJECT_SIZE_BYTES / 1024).toFixed(1)}KB)`);
 
+    if (!global.gc) {
+        console.log("⚠️  Note: Run with 'node --expose-gc' for more accurate memory measurements");
+    } else {
+        console.log("✅ Garbage collection available for accurate memory measurements");
+    }
+
     const results = [];
 
     for (const testSize of TEST_SIZES) {
         console.log(`\n Testing with ${testSize} users...`);
 
-        // Measure initial memory
-        const initialMemory = getMemoryUsage();
-
         // Clean and initialize fresh instance for each test
         await $$.clean();
+
+        // Force garbage collection if available (run with --expose-gc)
+        if (global.gc) {
+            global.gc();
+        }
+
         const persistoInstance = await initialisePersisto();
+
+        // Measure initial memory after cleanup and initialization
+        const initialMemory = getMemoryUsage();
 
         // Configure user type
         await persistoInstance.configureTypes({
@@ -181,6 +137,11 @@ async function createPerformanceTest() {
 
         console.log("   Creating users...");
         const createStartTime = Date.now();
+
+        // Force garbage collection before measuring baseline memory
+        if (global.gc) {
+            global.gc();
+        }
         const beforeCreationMemory = getMemoryUsage();
 
         // Create users with varied data
@@ -212,13 +173,19 @@ async function createPerformanceTest() {
         }
 
         const createEndTime = Date.now();
+
+        // Force garbage collection to get accurate memory reading
+        if (global.gc) {
+            global.gc();
+        }
         const afterCreationMemory = getMemoryUsage();
         const creationTime = createEndTime - createStartTime;
         const creationMemoryDelta = calculateMemoryDelta(beforeCreationMemory, afterCreationMemory);
 
         console.log(`  ✅ Created ${testSize} users in ${creationTime}ms`);
         console.log(`   Creation rate: ${(testSize / creationTime * 1000).toFixed(2)} users/second`);
-        console.log(`   Memory used: ${formatMemorySize(creationMemoryDelta.heapUsedChange)} heap, ${formatMemorySize(creationMemoryDelta.rssChange)} RSS`);
+        console.log(`   Memory used: ${formatMemorySize(Math.max(0, creationMemoryDelta.heapUsedChange))} heap, ${formatMemorySize(Math.max(0, creationMemoryDelta.rssChange))} RSS`);
+        console.log(`   Memory debug: Before=${beforeCreationMemory.heapUsed}MB, After=${afterCreationMemory.heapUsed}MB, Delta=${creationMemoryDelta.heapUsedChange}MB`);
 
         // Test retrieval performance
         console.log("   Testing retrieval performance...");
@@ -426,20 +393,22 @@ async function createPerformanceTest() {
     console.log("Users\t\tCreation(MB)\tTotal(MB)\tPer Object(KB)");
     console.log("-----\t\t------------\t---------\t--------------");
     results.forEach(result => {
-        const creationMB = result.memory.creation.heapUsed / (1024 * 1024);
-        const totalMB = result.memory.total.heapUsed / (1024 * 1024);
-        const perObjectKB = result.memory.creation.heapUsed / result.userCount / 1024;
+        // Values are already in MB from getMemoryUsage(), no need to divide again
+        const creationMB = Math.max(0, result.memory.creation.heapUsed);
+        const totalMB = Math.max(0, result.memory.total.heapUsed);
+        const perObjectKB = Math.max(0, result.memory.creation.heapUsed) * 1024 / result.userCount; // Convert MB to KB for per-object
         console.log(`${result.userCount}\t\t${creationMB.toFixed(1)}\t\t${totalMB.toFixed(1)}\t\t${perObjectKB.toFixed(2)}`);
     });
 
     // Memory efficiency analysis
-    const avgMemoryPerObject = results.reduce((sum, r) => sum + (r.memory.creation.heapUsed / r.userCount), 0) / results.length;
+    const avgMemoryPerObjectMB = results.reduce((sum, r) => sum + (r.memory.creation.heapUsed / r.userCount), 0) / results.length;
+    const avgMemoryPerObjectBytes = avgMemoryPerObjectMB * 1024 * 1024; // Convert MB to bytes
     const expectedMemoryPerObject = OBJECT_SIZE_BYTES;
-    const memoryEfficiency = expectedMemoryPerObject / avgMemoryPerObject;
+    const memoryEfficiency = expectedMemoryPerObject / avgMemoryPerObjectBytes;
 
     console.log("\nMemory Efficiency:");
     console.log(`Expected size per object: ${(expectedMemoryPerObject / 1024).toFixed(2)}KB`);
-    console.log(`Actual memory per object: ${(avgMemoryPerObject / 1024).toFixed(2)}KB`);
+    console.log(`Actual memory per object: ${(avgMemoryPerObjectBytes / 1024).toFixed(2)}KB`);
     console.log(`Memory efficiency: ${(memoryEfficiency * 100).toFixed(1)}% (${memoryEfficiency < 0.5 ? "⚠️  Poor" : memoryEfficiency < 0.8 ? "📊 Fair" : "✅ Good"})`);
 
     console.log("\n Performance test completed successfully!");

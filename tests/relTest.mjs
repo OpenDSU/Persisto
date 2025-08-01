@@ -84,8 +84,8 @@ async function runRelTest() {
             chatroom: [general.id]  // Single field name
         });
 
-        let aliceChats = await persisto.getChatroomsFromRelForUser(alice.id);
-        let generalUsers = await persisto.getUsersFromRelForChatroom(general.id);
+        let aliceChats = await persisto.getChatroomsFromRelWithUser(alice.id);
+        let generalUsers = await persisto.getUsersFromRelWithChatroom(general.id);
 
         console.log(`Alice's chatrooms: ${aliceChats.map(c => c.name)}`);
         console.log(`General's users: ${generalUsers.map(u => u.displayName)}`);
@@ -97,8 +97,8 @@ async function runRelTest() {
             project: [website.id]  // Single field name
         });
 
-        let aliceProjects = await persisto.getProjectsFromRelForUser(alice.id);
-        let websiteUsers = await persisto.getUsersFromRelForProject(website.id);
+        let aliceProjects = await persisto.getProjectsFromRelWithUser(alice.id);
+        let websiteUsers = await persisto.getUsersFromRelWithProject(website.id);
 
         console.log(`Alice's projects: ${aliceProjects.map(p => p.name)}`);
         console.log(`Website's users: ${websiteUsers.map(u => u.displayName)}`);
@@ -110,8 +110,8 @@ async function runRelTest() {
             tag: [javascript.id]  // Single field name
         });
 
-        let websiteTags = await persisto.getTagsFromRelForProject(website.id);
-        let javascriptProjects = await persisto.getProjectsFromRelForTag(javascript.id);
+        let websiteTags = await persisto.getTagsFromRelWithProject(website.id);
+        let javascriptProjects = await persisto.getProjectsFromRelWithTag(javascript.id);
 
         console.log(`Website's tags: ${websiteTags.map(t => t.name)}`);
         console.log(`JavaScript tag's projects: ${javascriptProjects.map(p => p.name)}`);
@@ -122,8 +122,8 @@ async function runRelTest() {
             user: [alice.id]
         });
 
-        let aliceChats2 = await persisto.getChatroomsFromRelForUser(alice.id);
-        let generalUsers2 = await persisto.getUsersFromRelForChatroom(general.id);
+        let aliceChats2 = await persisto.getChatroomsFromRelWithUser(alice.id);
+        let generalUsers2 = await persisto.getUsersFromRelWithChatroom(general.id);
 
         console.log(`Alice's chatrooms (after chatroom update): ${aliceChats2.map(c => c.name)}`);
         console.log(`General's users (after chatroom update): ${generalUsers2.map(u => u.displayName)}`);
@@ -145,7 +145,7 @@ async function runRelTest() {
             chatroom: [general.id]
         });
 
-        let finalGeneralUsers = await persisto.getUsersFromRelForChatroom(general.id);
+        let finalGeneralUsers = await persisto.getUsersFromRelWithChatroom(general.id);
         console.log(`Final general users: ${finalGeneralUsers.map(u => u.displayName)}`);
     } catch (error) {
         console.error("❌ Test failed:", error);

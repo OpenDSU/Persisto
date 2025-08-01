@@ -73,6 +73,51 @@ function SimpleFSStorageStrategy() {
         }
     }
 
+    function isSpecialObject(id) {
+        // Check if it's a system object
+        if (id === "system") {
+            return true;
+        }
+
+        // Check if it's an index (contains a dot but doesn't follow the regular object pattern)
+        // Regular objects follow pattern: TYPENAME.NUMBER (e.g., USER.1, USER.123)
+        // Indexes follow pattern: typename.fieldname (e.g., user.name, ticket.id)
+        if (id.includes(FILE_PATH_SEPARATOR)) {
+            // If it has a dot, check if it's a regular object ID (UPPERCASE.NUMBER)
+            const parts = id.split(FILE_PATH_SEPARATOR);
+            if (parts.length === 2) {
+                const [typePart, idPart] = parts;
+                // Regular objects have uppercase type and numeric ID
+                if (typePart === typePart.toUpperCase() && /^\d+$/.test(idPart)) {
+                    return false; // This is a regular object, not special
+                }
+            }
+            return true; // Other dot-containing objects are special (indexes)
+        }
+
+        // Check if it's a grouping
+        for (let typeName in _groupings) {
+            let allGroupings = _groupings[typeName];
+            if (allGroupings && allGroupings.length > 0) {
+                for (let i = 0; i < allGroupings.length; i++) {
+                    if (allGroupings[i].groupingName === id) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        // Check if it's a rel/join related object
+        for (let joinName in _joins) {
+            let joinConfig = _joins[joinName];
+            if (id === joinConfig.leftToRight || id === joinConfig.rightToLeft) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     async function loadWithCache(id, allowMissing = false) {
         if (!cache[id]) {
             cache[id] = await self.loadObjectFromDisk(id, allowMissing);
@@ -82,12 +127,24 @@ function SimpleFSStorageStrategy() {
         return cache[id];
     }
 
+    async function loadWithCacheCopy(id, allowMissing = false) {
+        let obj = await loadWithCache(id, allowMissing);
+
+        // For regular objects (not indexes, groupings, or rels), return a deep copy
+        // to prevent mutations affecting the cached version
+        if (obj && !isSpecialObject(id)) {
+            return structuredClone(obj);
+        }
+
+        return obj;
+    }
+
     function setForSave(id) {
         modified[id] = true;
     }
 
     this.loadObject = async function (id, allowMissing = false) {
-        return await loadWithCache(id, allowMissing);
+        return await loadWithCacheCopy(id, allowMissing);
     }
 
     this.objectExists = async function (id) {
@@ -184,10 +241,10 @@ function SimpleFSStorageStrategy() {
         obj.id = id;
         setForSave(id);
 
-        await this.storeObject(id, obj);
         timestampCache[id] = await this.getTimestamp(id);
 
-        return obj;
+        // Return a deep copy to prevent mutations from affecting the cached version
+        return structuredClone(obj);
     }
 
     this.getProperty = async function (id, key) {
@@ -215,13 +272,28 @@ function SimpleFSStorageStrategy() {
             if (groupingFieldName === fieldName) {
                 let grouping = await loadWithCache(groupingName);
 
+                // Initialize itemSets if not present
+                if (!grouping.itemSets) {
+                    grouping.itemSets = {};
+                    // Initialize sets for existing items
+                    for (let fieldVal in grouping.items) {
+                        grouping.itemSets[fieldVal] = new Set(grouping.items[fieldVal]);
+                    }
+                }
+
                 // Remove from old value's grouping (if oldValue exists)
                 if (oldValue !== undefined && grouping.items[oldValue]) {
-                    let index = grouping.items[oldValue].indexOf(objId);
-                    if (index !== -1) {
-                        grouping.items[oldValue].splice(index, 1);
+                    if (!grouping.itemSets[oldValue]) {
+                        grouping.itemSets[oldValue] = new Set(grouping.items[oldValue]);
+                    }
+
+                    if (grouping.itemSets[oldValue].has(objId)) {
+                        grouping.items[oldValue] = grouping.items[oldValue].filter(id => id !== objId);
+                        grouping.itemSets[oldValue].delete(objId);
+
                         if (grouping.items[oldValue].length === 0) {
                             delete grouping.items[oldValue];
+                            delete grouping.itemSets[oldValue];
                         }
                         setForSave(groupingName);
                     }
@@ -232,8 +304,14 @@ function SimpleFSStorageStrategy() {
                     if (!grouping.items[newValue]) {
                         grouping.items[newValue] = [];
                     }
-                    if (grouping.items[newValue].indexOf(objId) === -1) {
+                    if (!grouping.itemSets[newValue]) {
+                        grouping.itemSets[newValue] = new Set(grouping.items[newValue]);
+                    }
+
+                    // O(1) check using Set
+                    if (!grouping.itemSets[newValue].has(objId)) {
                         grouping.items[newValue].push(objId);
+                        grouping.itemSets[newValue].add(objId);
                         setForSave(groupingName);
                     }
                 }
@@ -358,11 +436,24 @@ function SimpleFSStorageStrategy() {
                 //console.debug(">>> Found grouping" + groupingName + " grouped by field " + _groupings[typeName].fieldName + " for type " + typeName);
                 let fieldName = allGroupings[i].fieldName;
                 let grouping = await loadWithCache(groupingName);
-                if (!grouping.items[obj[fieldName]]) {
-                    grouping.items[obj[fieldName]] = [];
+
+                let fieldValue = obj[fieldName];
+
+                // Initialize arrays and sets if they don't exist
+                if (!grouping.items[fieldValue]) {
+                    grouping.items[fieldValue] = [];
                 }
-                if (grouping.items[obj[fieldName]].indexOf(objId) === -1) {
-                    grouping.items[obj[fieldName]].push(objId);
+                if (!grouping.itemSets) {
+                    grouping.itemSets = {};
+                }
+                if (!grouping.itemSets[fieldValue]) {
+                    grouping.itemSets[fieldValue] = new Set(grouping.items[fieldValue]);
+                }
+
+                // O(1) check using Set instead of O(n) array scan
+                if (!grouping.itemSets[fieldValue].has(objId)) {
+                    grouping.items[fieldValue].push(objId);
+                    grouping.itemSets[fieldValue].add(objId);
                     setForSave(groupingName);
                 }
             }
@@ -409,14 +500,31 @@ function SimpleFSStorageStrategy() {
                 let groupingName = myGroupings[i].groupingName;
                 let fieldName = myGroupings[i].fieldName;
                 let grouping = await loadWithCache(groupingName);
-                if (!grouping.items[obj[fieldName]]) {
+
+                let fieldValue = obj[fieldName];
+                if (!grouping.items[fieldValue]) {
                     return;
                 }
-                let index = grouping.items[obj[fieldName]].indexOf(objId);
-                if (index !== -1) {
-                    grouping.items[obj[fieldName]].splice(index, 1);
-                    if (grouping.items[obj[fieldName]].length === 0) {
-                        delete grouping.items[obj[fieldName]];
+
+                // Initialize itemSets if not present
+                if (!grouping.itemSets) {
+                    grouping.itemSets = {};
+                    for (let fieldVal in grouping.items) {
+                        grouping.itemSets[fieldVal] = new Set(grouping.items[fieldVal]);
+                    }
+                }
+                if (!grouping.itemSets[fieldValue]) {
+                    grouping.itemSets[fieldValue] = new Set(grouping.items[fieldValue]);
+                }
+
+                // O(1) check and removal using Set
+                if (grouping.itemSets[fieldValue].has(objId)) {
+                    grouping.items[fieldValue] = grouping.items[fieldValue].filter(id => id !== objId);
+                    grouping.itemSets[fieldValue].delete(objId);
+
+                    if (grouping.items[fieldValue].length === 0) {
+                        delete grouping.items[fieldValue];
+                        delete grouping.itemSets[fieldValue];
                     }
                     setForSave(groupingName);
                 }
@@ -593,7 +701,7 @@ function SimpleFSStorageStrategy() {
 
         let obj = await loadWithCache(groupingName, true);
         if (!obj) {
-            await this.createObject(groupingName, { items: {} });
+            await this.createObject(groupingName, { items: {}, itemSets: {} });
             setForSave(groupingName);
         }
 
@@ -643,11 +751,22 @@ function SimpleFSStorageStrategy() {
                             grouping.items[fieldValue] = [];
                         }
 
-                        // Add the object ID if it's not already in the grouping
-                        if (grouping.items[fieldValue].indexOf(objectId) === -1) {
-                            grouping.items[fieldValue].push(objectId);
-                            groupingUpdated = true;
+                        // Initialize itemSets if not present
+                        if (!grouping.itemSets) {
+                            grouping.itemSets = {};
+                            for (let fieldVal in grouping.items) {
+                                grouping.itemSets[fieldVal] = new Set(grouping.items[fieldVal]);
+                            }
+                        }
+                        if (!grouping.itemSets[fieldValue]) {
+                            grouping.itemSets[fieldValue] = new Set(grouping.items[fieldValue]);
+                        }
 
+                        // Add the object ID if it's not already in the grouping (O(1) check using Set)
+                        if (!grouping.itemSets[fieldValue].has(objectId)) {
+                            grouping.items[fieldValue].push(objectId);
+                            grouping.itemSets[fieldValue].add(objectId);
+                            groupingUpdated = true;
                         }
                     }
                 } catch (error) {

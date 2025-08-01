@@ -4,6 +4,7 @@ import { } from "../clean.mjs";
 await $$.clean();
 
 import { initialisePersisto } from '../index.cjs';
+import { deepEqual } from './testUtils.js';
 
 let persistoInstance = await initialisePersisto();
 
@@ -42,7 +43,7 @@ let user2 = await persistoInstance.createUserStatus({
 });
 let users = await persistoInstance.getEveryUserStatusObject();
 
-if (user !== users[0] || user2 !== users[1]) {
+if (!deepEqual(user, users[0]) || !deepEqual(user2, users[1])) {
     throw new Error("getEveryUserObject assertion failed");
 }
 

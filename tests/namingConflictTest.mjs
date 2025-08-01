@@ -5,6 +5,7 @@ import { } from "../clean.mjs";
 await $$.clean();
 
 import { initialisePersisto } from '../index.cjs';
+import { deepEqual } from './testUtils.js';
 
 let persistoInstance = await initialisePersisto();
 const sameConfig = {
@@ -59,9 +60,8 @@ try {
     //ok
 }
 
-
 let sameObject = await persistoInstance.getType1("email1");
-if (object !== sameObject) {
+if (!deepEqual(object, sameObject)) {
     failedChecks.push("configureAssets conflict method overwritten");
 }
 await persistoInstance.shutDown();
