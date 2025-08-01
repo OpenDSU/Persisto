@@ -36,7 +36,7 @@ async function runRelTest() {
 
         const timestamp = Date.now();
 
-        console.log("\n1. Creating joins with ultra-simple field names...");
+        console.log("\n1. Creating rels with ultra-simple field names...");
 
         // Field names match type names exactly!
         await persisto.createRel("userChatrooms", "user", "chatroom");

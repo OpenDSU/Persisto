@@ -249,7 +249,7 @@ function Persisto(smartStorage, systemLogger, config) {
         return await smartStorage.createGrouping(groupingName, typeName, fieldName);
     }
 
-    this.createRel = async function (joinName, leftType, rightType) {
+    this.createRel = async function (relName, leftType, rightType) {
         if (!self._joinConfigs) {
             self._joinConfigs = {};
         }
@@ -259,49 +259,49 @@ function Persisto(smartStorage, systemLogger, config) {
             rightField: leftType
         };
 
-        self._joinConfigs[joinName] = {
+        self._joinConfigs[relName] = {
             leftType,
             rightType,
             syncFields
         };
 
-        let leftToRightMethodName = "get" + upCaseFirstLetter(rightType) + "sFromRelFor" + upCaseFirstLetter(leftType);
+        let leftToRightMethodName = "get" + upCaseFirstLetter(rightType) + "sFromRelWith" + upCaseFirstLetter(leftType);
         self[leftToRightMethodName] = async function (leftId, sortBy, start = 0, end, descending = false) {
-            return await smartStorage.getReledObjectsData(joinName, leftId, "left_to_right", sortBy, start, end, descending);
+            return await smartStorage.getRelatedObjectsData(relName, leftId, "left_to_right", sortBy, start, end, descending);
         };
 
-        let rightToLeftMethodName = "get" + upCaseFirstLetter(leftType) + "sFromRelFor" + upCaseFirstLetter(rightType);
+        let rightToLeftMethodName = "get" + upCaseFirstLetter(leftType) + "sFromRelWith" + upCaseFirstLetter(rightType);
         self[rightToLeftMethodName] = async function (rightId, sortBy, start = 0, end, descending = false) {
-            return await smartStorage.getReledObjectsData(joinName, rightId, "right_to_left", sortBy, start, end, descending);
+            return await smartStorage.getRelatedObjectsData(relName, rightId, "right_to_left", sortBy, start, end, descending);
         };
 
-        let leftToRightIdsMethodName = "get" + upCaseFirstLetter(rightType) + "IdsFromRelFor" + upCaseFirstLetter(leftType);
+        let leftToRightIdsMethodName = "get" + upCaseFirstLetter(rightType) + "IdsFromRelWith" + upCaseFirstLetter(leftType);
         self[leftToRightIdsMethodName] = async function (leftId) {
-            return await smartStorage.getReledObjects(joinName, leftId, "left_to_right");
+            return await smartStorage.getRelatedObjects(relName, leftId, "left_to_right");
         };
 
-        let rightToLeftIdsMethodName = "get" + upCaseFirstLetter(leftType) + "IdsFromRelFor" + upCaseFirstLetter(rightType);
+        let rightToLeftIdsMethodName = "get" + upCaseFirstLetter(leftType) + "IdsFromRelWith" + upCaseFirstLetter(rightType);
         self[rightToLeftIdsMethodName] = async function (rightId) {
-            return await smartStorage.getReledObjects(joinName, rightId, "right_to_left");
+            return await smartStorage.getRelatedObjects(relName, rightId, "right_to_left");
         };
 
-        let removeRelMethodName = "remove" + upCaseFirstLetter(leftType) + "FromRelWith" + upCaseFirstLetter(rightType);
+        let removeRelMethodName = "remove" + upCaseFirstLetter(leftType) + "FromRel" + upCaseFirstLetter(rightType);
         self[removeRelMethodName] = async function (leftId, rightId) {
-            return await smartStorage.removeRel(joinName, leftId, rightId);
+            return await smartStorage.removeRel(relName, leftId, rightId);
         };
 
-        console.debug(`Creating join ${joinName}: ${leftType} <-> ${rightType}`);
-        console.debug(`Auto-sync fields configured for ${joinName}:`, syncFields);
+        console.debug(`Creating rel ${relName}: ${leftType} <-> ${rightType}`);
+        console.debug(`Auto-sync fields configured for ${relName}:`, syncFields);
 
-        return await smartStorage.createRel(joinName, leftType, rightType);
+        return await smartStorage.createRel(relName, leftType, rightType);
     }
 
-    this.removeRel = async function (joinName, leftId, rightId) {
-        return await smartStorage.removeRel(joinName, leftId, rightId);
+    this.removeRel = async function (relName, leftId, rightId) {
+        return await smartStorage.removeRel(relName, leftId, rightId);
     }
 
-    this.getReledObjects = async function (joinName, objectId, direction, sortBy, start, end, descending) {
-        return await smartStorage.getReledObjectsData(joinName, objectId, direction, sortBy, start, end, descending);
+    this.getRelatedObjects = async function (relName, objectId, direction, sortBy, start, end, descending) {
+        return await smartStorage.getRelatedObjectsData(relName, objectId, direction, sortBy, start, end, descending);
     }
 
     this.getLogicalTimestamp = async function () {
@@ -313,8 +313,8 @@ function Persisto(smartStorage, systemLogger, config) {
             return;
         }
 
-        for (let joinName in self._joinConfigs) {
-            let joinConfig = self._joinConfigs[joinName];
+        for (let relName in self._joinConfigs) {
+            let joinConfig = self._joinConfigs[relName];
             let { leftType, rightType, syncFields } = joinConfig;
 
             if (objectType !== leftType && objectType !== rightType) {
@@ -326,14 +326,14 @@ function Persisto(smartStorage, systemLogger, config) {
             }
 
             try {
-                await self.processSyncFields(joinName, objectType, objectId, objectData, oldData, joinConfig);
+                await self.processSyncFields(relName, objectType, objectId, objectData, oldData, joinConfig);
             } catch (error) {
-                console.error(`Error syncing arrays for join ${joinName}:`, error);
+                console.error(`Error syncing arrays for join ${relName}:`, error);
             }
         }
     }
 
-    this.processSyncFields = async function (joinName, objectType, objectId, objectData, oldData, joinConfig) {
+    this.processSyncFields = async function (relName, objectType, objectId, objectData, oldData, joinConfig) {
         let { leftType, rightType, syncFields } = joinConfig;
         let { leftField, rightField } = syncFields;
 
@@ -362,20 +362,20 @@ function Persisto(smartStorage, systemLogger, config) {
 
         for (let targetId of additions) {
             if (objectType === leftType) {
-                await smartStorage.addRel(joinName, objectId, targetId);
+                await smartStorage.addRel(relName, objectId, targetId);
                 console.debug(`Synced join: Added ${leftType} ${objectId} to ${rightType} ${targetId}`);
             } else {
-                await smartStorage.addRel(joinName, targetId, objectId);
+                await smartStorage.addRel(relName, targetId, objectId);
                 console.debug(`Synced join: Added ${leftType} ${targetId} to ${rightType} ${objectId}`);
             }
         }
 
         for (let targetId of removals) {
             if (objectType === leftType) {
-                await smartStorage.removeRel(joinName, objectId, targetId);
+                await smartStorage.removeRel(relName, objectId, targetId);
                 console.debug(`Synced join: Removed ${leftType} ${objectId} from ${rightType} ${targetId}`);
             } else {
-                await smartStorage.removeRel(joinName, targetId, objectId);
+                await smartStorage.removeRel(relName, targetId, objectId);
                 console.debug(`Synced join: Removed ${leftType} ${targetId} from ${rightType} ${objectId}`);
             }
         }

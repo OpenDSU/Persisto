@@ -1,24 +1,3 @@
-/**
- * Persisto Disk I/O Performance Test
- * 
- * This test measures disk I/O performance degradation as dataset size grows.
- * Specifically tracks write and read times to confirm performance bottlenecks.
- * 
- * Features:
- * - Individual disk write time measurement
- * - Individual disk read time measurement
- * - Performance degradation tracking over dataset size
- * - Detailed reporting to separate file
- * - Memory usage correlation with I/O performance
- * 
- * Environment Variables:
- * - OBJECT_SIZE: Size of each test object in bytes (default: 1024 = 1KB)
- * - TEST_SIZE: Number of objects to create (default: 50000)
- * - SAMPLE_INTERVAL: How often to sample I/O times (default: 1000)
- * 
- * Output: Creates performance_report_[timestamp].json with detailed metrics
- */
-
 import { } from "../../clean.mjs";
 
 await $$.clean();
@@ -27,9 +6,13 @@ import { initialisePersisto } from '../../index.cjs';
 
 // Performance test configuration
 const TEST_SIZE = parseInt(process.env.TEST_SIZE) || 50000; // Total objects to create
+const TEST_SIZES = process.env.QUICK_TEST === 'true'
+    ? [1000, 5000, 10000]
+    : [1000, 5000, 10000, 25000, 50000]; // Array of test sizes to run
 const SAMPLE_INTERVAL = parseInt(process.env.SAMPLE_INTERVAL) || 1000; // Sample I/O times every N objects
 const OBJECT_SIZE_BYTES = parseInt(process.env.OBJECT_SIZE) || 1024; // Default 1KB object size
 const RETRIEVAL_SAMPLES = 100; // Number of random retrievals to test at each sample point
+const RETRIEVAL_TESTS_PER_SIZE = process.env.QUICK_TEST === 'true' ? 25 : 100; // Number of retrieval tests per size
 
 /**
  * Utilities for I/O measurement and reporting
@@ -43,6 +26,11 @@ function getMemoryUsage() {
         external: Math.round(usage.external / (1024 * 1024)), // MB
         timestamp: Date.now()
     };
+}
+
+function formatMemorySize(bytes) {
+    const mb = bytes / (1024 * 1024);
+    return `${mb.toFixed(2)}MB`;
 }
 
 /**
@@ -342,7 +330,7 @@ async function createPerformanceTest() {
         console.log(`    Email Retrieval: ${avgEmailRetrievalTime.toFixed(3)}ms avg (${minEmailRetrievalTime.toFixed(3)}-${maxEmailRetrievalTime.toFixed(3)}ms range)`);
         console.log(`    Get All Users: ${getAllTime.toFixed(3)}ms (${(testSize / getAllTime * 1000).toFixed(2)} users/sec)`);
         console.log(`    Dept Retrieval: ${deptRetrievalTime.toFixed(3)}ms (${engineeringUsers.length} users found)`);
-        console.log(`  Memory Usage:`);
+        console.log(`    Memory Usage:`);
         console.log(`    Creation: ${formatMemorySize(testResult.memory.creation.heapUsed)} heap, ${formatMemorySize(testResult.memory.creation.rss)} RSS`);
         console.log(`    Total Used: ${formatMemorySize(testResult.memory.total.heapUsed)} heap, ${formatMemorySize(testResult.memory.total.rss)} RSS`);
         console.log(`    Memory per Object: ${(testResult.memory.creation.heapUsed / testSize / 1024).toFixed(2)}KB heap/object`);

@@ -138,12 +138,12 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
         return await storageStrategy.removeRel(joinName, leftId, rightId);
     }
 
-    this.getReledObjects = async function (joinName, objectId, direction) {
-        return await storageStrategy.getReledObjects(joinName, objectId, direction);
+    this.getRelatedObjects = async function (joinName, objectId, direction) {
+        return await storageStrategy.getRelatedObjects(joinName, objectId, direction);
     }
 
-    this.getReledObjectsData = async function (joinName, objectId, direction, sortBy, start, end, descending) {
-        return await storageStrategy.getReledObjectsData(joinName, objectId, direction, sortBy, start, end, descending);
+    this.getRelatedObjectsData = async function (joinName, objectId, direction, sortBy, start, end, descending) {
+        return await storageStrategy.getRelatedObjectsData(joinName, objectId, direction, sortBy, start, end, descending);
     }
 
     this.removeObjectFromAllRels = async function (objectId) {

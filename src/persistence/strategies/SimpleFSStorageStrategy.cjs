@@ -781,7 +781,7 @@ function SimpleFSStorageStrategy() {
         }
     }
 
-    this.getReledObjects = async function (joinName, objectId, direction) {
+    this.getRelatedObjects = async function (joinName, objectId, direction) {
         if (!_joins[joinName]) {
             await $$.throwError(new Error("Rel " + joinName + " does not exist!"));
         }
@@ -801,8 +801,8 @@ function SimpleFSStorageStrategy() {
         return mapping.joins[objectId] || [];
     }
 
-    this.getReledObjectsData = async function (joinName, objectId, direction, sortBy, start, end, descending) {
-        let joinedIds = await this.getReledObjects(joinName, objectId, direction);
+    this.getRelatedObjectsData = async function (joinName, objectId, direction, sortBy, start, end, descending) {
+        let joinedIds = await this.getRelatedObjects(joinName, objectId, direction);
         if (joinedIds.length === 0) {
             return [];
         }
