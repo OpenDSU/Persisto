@@ -127,6 +127,7 @@ function AssetsMixin(smartStorage, systemAudit) {
     }
 
     this.mintPoints = async function (amount) {
+        amount = MathMoney.normalise(amount);
         let initialMintingDone = await smartStorage.getProperty("system", "initialMintingDone");
         if (initialMintingDone === true) {
             await $$.throwError(new Error("Initial minting already done!"), "Failing to mint " + amount + " points", "Initial minting already done!");
@@ -144,6 +145,7 @@ function AssetsMixin(smartStorage, systemAudit) {
     }
 
     this.rewardFounder = async function (userID, amount) {
+        amount = MathMoney.normalise(amount);
         let foundersRewardDone = await smartStorage.getProperty("system", "foundersRewardDone");
         if (foundersRewardDone === true) {
             await $$.throwError(new Error("Founders already rewarded!"), "Failing to reward " + amount + " points", "Founders already rewarded!");

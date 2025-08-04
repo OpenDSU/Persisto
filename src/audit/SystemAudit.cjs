@@ -281,12 +281,12 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
         }
     }
 
-    this.userLog = function (userID, log) {
+    this.userLog = function (userID, log, logType) {
         let forUser = makeCSVCompliant(userID);
         const timestamp = makeCSVCompliant(new Date().toISOString());
 
         usersBuffer[forUser] = usersBuffer[forUser] || [];
-        usersBuffer[forUser].push(`[${timestamp}]; ${log.trim()};`);
+        usersBuffer[forUser].push(`[${timestamp}]; ${log.trim()}; ${JSON.stringify(logType)};`);
         if (!logsTimer) {
             logsTimer = setInterval(() => this.flush(), flushInterval);
         }
@@ -300,8 +300,14 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
             case AUDIT_EVENTS.TRANSFER_LOCKED:
                 this.auditLog(AUDIT_EVENTS[eventType], details);
                 this.systemLog(AUDIT_EVENTS[eventType], details);
-                    this.userLog(details.toID, details.userLogToID || `You have received ${details.amount} ${details.amount === 1 ? 'point' : 'points'} ${details.reason}`);
-                this.userLog(details.fromID, details.userLogFromID || `You have transferred ${details.amount} ${details.amount === 1 ? 'point' : 'points'} ${details.reason}`);
+                this.userLog(details.toID, details.userLogToID || `You have received ${details.amount} ${details.amount === 1 ? 'point' : 'points'} ${details.reason}`, {
+                    type: "transfer",
+                    action: "received"
+                });
+                this.userLog(details.fromID, details.userLogFromID || `You have transferred ${details.amount} ${details.amount === 1 ? 'point' : 'points'} ${details.reason}`, {
+                    type: "transfer",
+                    action: "sent"
+                });
                 break;
             case AUDIT_EVENTS.MINT:
                 this.auditLog(AUDIT_EVENTS[eventType], details);
@@ -330,20 +336,32 @@ function SystemAudit(flushInterval = 1, logDir, auditDir) {
                     userDetails = details;
                 }
                 this.auditLog(AUDIT_EVENTS[eventType], auditDetails);
-                this.userLog(details.userID, `${details.amount} ${details.amount === 1 ? 'point' : 'points'} ${userDetails.reason}`);
+                this.userLog(details.userID, `${details.amount} ${details.amount === 1 ? 'point' : 'points'} ${userDetails.reason}`, {
+                    type: "transfer",
+                    action: eventType.toLowerCase()
+                });
                 this.systemLog(AUDIT_EVENTS[eventType], auditDetails);
                 break;
             case SYSLOG_EVENTS.INVITE_SENT:
-                this.userLog(details.userID, `You have sent an invite to ${details.email}`);
+                this.userLog(details.userID, `You have sent an invite to ${details.email}`, {
+                    type: "invite",
+                    action: "sent"
+                });
                 this.systemLog(SYSLOG_EVENTS[eventType], details);
                 break;
             case AUDIT_EVENTS.REWARD:
-                this.userLog(details.userID, `You have received ${details.amount} ${details.amount === 1 ? 'point' : 'points'} ${details.reason}`);
+                this.userLog(details.userID, `You have received ${details.amount} ${details.amount === 1 ? 'point' : 'points'} ${details.reason}`, {
+                    type: "transfer",
+                    action: "reward"
+                });
                 this.systemLog(AUDIT_EVENTS[eventType], details);
                 break;
             case AUDIT_EVENTS.CONFISCATE_LOCKED:
                 this.auditLog(AUDIT_EVENTS[eventType], details);
-                this.userLog(details.userID, `${details.amount} ${details.amount === 1 ? 'point' : 'points'} have been confiscated because ${details.reason}`);
+                this.userLog(details.userID, `${details.amount} ${details.amount === 1 ? 'point' : 'points'} have been confiscated because ${details.reason}`, {
+                    type: "transfer",
+                    action: "confiscate"
+                });
                 this.systemLog(AUDIT_EVENTS[eventType], details);
                 break;
             default:

@@ -35,6 +35,10 @@ function MathMoney() {
     }
 
     this.normalise = function (a) {
+        if (isNaN(a)) {
+            throw new Error('Parameter must be a valid number');
+        }
+        a = Number(a);
         return Math.round(a * CONST_NORMALISATION) / CONST_NORMALISATION;
     }
 
