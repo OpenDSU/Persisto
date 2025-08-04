@@ -283,7 +283,7 @@ function SimpleFSStorageStrategy() {
 
                 // Remove from old value's grouping (if oldValue exists)
                 if (oldValue !== undefined && grouping.items[oldValue]) {
-                    if (!grouping.itemSets[oldValue]) {
+                    if (!grouping.itemSets[oldValue] || !(grouping.itemSets[oldValue] instanceof Set)) {
                         grouping.itemSets[oldValue] = new Set(grouping.items[oldValue]);
                     }
 
@@ -304,7 +304,7 @@ function SimpleFSStorageStrategy() {
                     if (!grouping.items[newValue]) {
                         grouping.items[newValue] = [];
                     }
-                    if (!grouping.itemSets[newValue]) {
+                    if (!grouping.itemSets[newValue] || !(grouping.itemSets[newValue] instanceof Set)) {
                         grouping.itemSets[newValue] = new Set(grouping.items[newValue]);
                     }
 
@@ -446,7 +446,7 @@ function SimpleFSStorageStrategy() {
                 if (!grouping.itemSets) {
                     grouping.itemSets = {};
                 }
-                if (!grouping.itemSets[fieldValue]) {
+                if (!grouping.itemSets[fieldValue] || !(grouping.itemSets[fieldValue] instanceof Set)) {
                     grouping.itemSets[fieldValue] = new Set(grouping.items[fieldValue]);
                 }
 
@@ -513,7 +513,7 @@ function SimpleFSStorageStrategy() {
                         grouping.itemSets[fieldVal] = new Set(grouping.items[fieldVal]);
                     }
                 }
-                if (!grouping.itemSets[fieldValue]) {
+                if (!grouping.itemSets[fieldValue] || !(grouping.itemSets[fieldValue] instanceof Set)) {
                     grouping.itemSets[fieldValue] = new Set(grouping.items[fieldValue]);
                 }
 
@@ -758,7 +758,7 @@ function SimpleFSStorageStrategy() {
                                 grouping.itemSets[fieldVal] = new Set(grouping.items[fieldVal]);
                             }
                         }
-                        if (!grouping.itemSets[fieldValue]) {
+                        if (!grouping.itemSets[fieldValue] || !(grouping.itemSets[fieldValue] instanceof Set)) {
                             grouping.itemSets[fieldValue] = new Set(grouping.items[fieldValue]);
                         }
 
