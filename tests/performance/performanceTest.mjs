@@ -11,9 +11,6 @@ const TEST_SIZES = process.env.QUICK_TEST === 'true'
 const OBJECT_SIZE_BYTES = parseInt(process.env.OBJECT_SIZE) || 1024; // Default 1KB object size
 const RETRIEVAL_TESTS_PER_SIZE = process.env.QUICK_TEST === 'true' ? 25 : 100; // Number of retrieval tests per size
 
-/**
- * Utilities for I/O measurement and reporting
- */
 function getMemoryUsage() {
     const usage = process.memoryUsage();
     return {
@@ -144,10 +141,18 @@ async function createPerformanceTest() {
         }
         const beforeCreationMemory = getMemoryUsage();
 
+        // Store initial memory state for more accurate measurement
+        const initialHeapUsed = beforeCreationMemory.heapUsed;
+        const initialRss = beforeCreationMemory.rss;
+
         // Create users with varied data
         const userIds = [];
         const userEmails = [];
         const departments = ["Engineering", "Marketing", "Sales", "HR", "Finance"];
+
+        // Track peak memory during creation
+        let peakHeapUsed = initialHeapUsed;
+        let peakRss = initialRss;
 
         for (let i = 0; i < testSize; i++) {
             const userData = createUserObjectWithSize(i, departments, OBJECT_SIZE_BYTES);
@@ -156,8 +161,12 @@ async function createPerformanceTest() {
             userIds.push(user.id);
             userEmails.push(user.email);
 
-            // Progress indicator for large datasets
+            // Track peak memory (check every 1000 users to avoid performance impact)
             if (i > 0 && i % 1000 === 0) {
+                const currentMemory = getMemoryUsage();
+                peakHeapUsed = Math.max(peakHeapUsed, currentMemory.heapUsed);
+                peakRss = Math.max(peakRss, currentMemory.rss);
+
                 const elapsedTime = Date.now() - createStartTime;
                 const currentRate = (i / elapsedTime * 1000).toFixed(2);
                 console.log(`    Created ${i} users... (${currentRate} users/sec)`);
@@ -180,12 +189,25 @@ async function createPerformanceTest() {
         }
         const afterCreationMemory = getMemoryUsage();
         const creationTime = createEndTime - createStartTime;
+
+        // Calculate memory using peak values to avoid GC interference
+        const peakMemoryDelta = {
+            heapUsedChange: peakHeapUsed - initialHeapUsed,
+            rssChange: peakRss - initialRss
+        };
         const creationMemoryDelta = calculateMemoryDelta(beforeCreationMemory, afterCreationMemory);
 
         console.log(`  ✅ Created ${testSize} users in ${creationTime}ms`);
         console.log(`   Creation rate: ${(testSize / creationTime * 1000).toFixed(2)} users/second`);
-        console.log(`   Memory used: ${formatMemorySize(Math.max(0, creationMemoryDelta.heapUsedChange))} heap, ${formatMemorySize(Math.max(0, creationMemoryDelta.rssChange))} RSS`);
-        console.log(`   Memory debug: Before=${beforeCreationMemory.heapUsed}MB, After=${afterCreationMemory.heapUsed}MB, Delta=${creationMemoryDelta.heapUsedChange}MB`);
+        console.log(`   Memory used: ${peakMemoryDelta.heapUsedChange.toFixed(1)}MB heap (peak), ${peakMemoryDelta.rssChange.toFixed(1)}MB RSS (peak)`);
+        console.log(`   Memory debug: Initial=${initialHeapUsed}MB, Peak=${peakHeapUsed}MB, Final=${afterCreationMemory.heapUsed}MB`);
+        console.log(`   Memory deltas: Peak=${peakMemoryDelta.heapUsedChange}MB, Final=${creationMemoryDelta.heapUsedChange}MB`);
+
+        // Add more detailed memory debugging for anomaly detection
+        if (creationMemoryDelta.heapUsedChange < 0) {
+            console.log(`   ⚠️  WARNING: Negative final memory delta detected! This may indicate garbage collection interference.`);
+            console.log(`   Peak memory delta: ${peakMemoryDelta.heapUsedChange}MB (this is more accurate)`);
+        }
 
         // Test retrieval performance
         console.log("   Testing retrieval performance...");
@@ -263,8 +285,8 @@ async function createPerformanceTest() {
             deptRetrievalCount: engineeringUsers.length,
             memory: {
                 creation: {
-                    heapUsed: creationMemoryDelta.heapUsedChange,
-                    rss: creationMemoryDelta.rssChange,
+                    heapUsed: peakMemoryDelta.heapUsedChange, // Use peak values for more accurate measurement
+                    rss: peakMemoryDelta.rssChange,
                     heapTotal: creationMemoryDelta.heapTotalChange
                 },
                 retrieval: {
@@ -298,9 +320,9 @@ async function createPerformanceTest() {
         console.log(`    Get All Users: ${getAllTime.toFixed(3)}ms (${(testSize / getAllTime * 1000).toFixed(2)} users/sec)`);
         console.log(`    Dept Retrieval: ${deptRetrievalTime.toFixed(3)}ms (${engineeringUsers.length} users found)`);
         console.log(`    Memory Usage:`);
-        console.log(`    Creation: ${formatMemorySize(testResult.memory.creation.heapUsed)} heap, ${formatMemorySize(testResult.memory.creation.rss)} RSS`);
-        console.log(`    Total Used: ${formatMemorySize(testResult.memory.total.heapUsed)} heap, ${formatMemorySize(testResult.memory.total.rss)} RSS`);
-        console.log(`    Memory per Object: ${(testResult.memory.creation.heapUsed / testSize / 1024).toFixed(2)}KB heap/object`);
+        console.log(`    Creation (peak): ${testResult.memory.creation.heapUsed.toFixed(1)}MB heap, ${testResult.memory.creation.rss.toFixed(1)}MB RSS`);
+        console.log(`    Total Used: ${testResult.memory.total.heapUsed.toFixed(1)}MB heap, ${testResult.memory.total.rss.toFixed(1)}MB RSS`);
+        console.log(`    Memory per Object: ${(testResult.memory.creation.heapUsed / testSize * 1024).toFixed(2)}KB heap/object`);
 
         // Verify data integrity
         if (allUsers.length !== testSize) {
@@ -363,41 +385,20 @@ async function createPerformanceTest() {
     console.log(`• Email Retrieval: ${emailScalingFactor.toFixed(2)}x slower with ${largestTest.userCount / smallestTest.userCount}x more data`);
     console.log(`• Full Collection: ${collectionScalingFactor.toFixed(2)}x slower with ${largestTest.userCount / smallestTest.userCount}x more data`);
 
-    // Performance recommendations
-    console.log("\nRECOMMENDATIONS:");
-    console.log("===================");
-
-    if (idScalingFactor < 2) {
-        console.log("✅ ID retrieval scales well - likely using efficient direct access");
-    } else {
-        console.log("⚠️  ID retrieval scaling could be improved");
-    }
-
-    if (emailScalingFactor < 2) {
-        console.log("✅ Email retrieval scales well - indexing is effective");
-    } else {
-        console.log("⚠️  Email retrieval scaling suggests index optimization needed");
-    }
-
-    if (collectionScalingFactor > largestTest.userCount / smallestTest.userCount * 1.5) {
-        console.log("⚠️  Full collection retrieval scaling is worse than linear - consider pagination");
-    } else {
-        console.log("✅ Full collection retrieval scales reasonably");
-    }
-
     // Memory Usage Analysis
     console.log("\nMEMORY USAGE ANALYSIS:");
     console.log("======================");
 
     console.log("\nMemory Usage by Dataset Size:");
-    console.log("Users\t\tCreation(MB)\tTotal(MB)\tPer Object(KB)");
-    console.log("-----\t\t------------\t---------\t--------------");
+    console.log("Users\t\tCreation(MB)\tTotal(MB)\tPer Object(KB)\tRaw Delta(MB)");
+    console.log("-----\t\t------------\t---------\t--------------\t-------------");
     results.forEach(result => {
         // Values are already in MB from getMemoryUsage(), no need to divide again
-        const creationMB = Math.max(0, result.memory.creation.heapUsed);
-        const totalMB = Math.max(0, result.memory.total.heapUsed);
-        const perObjectKB = Math.max(0, result.memory.creation.heapUsed) * 1024 / result.userCount; // Convert MB to KB for per-object
-        console.log(`${result.userCount}\t\t${creationMB.toFixed(1)}\t\t${totalMB.toFixed(1)}\t\t${perObjectKB.toFixed(2)}`);
+        const creationMB = result.memory.creation.heapUsed;
+        const totalMB = result.memory.total.heapUsed;
+        const perObjectKB = result.memory.creation.heapUsed * 1024 / result.userCount; // Convert MB to KB for per-object
+        const rawDelta = result.memory.creation.heapUsed; // Show the actual delta, even if negative
+        console.log(`${result.userCount}\t\t${creationMB.toFixed(1)}\t\t${totalMB.toFixed(1)}\t\t${perObjectKB.toFixed(2)}\t\t${rawDelta.toFixed(1)}`);
     });
 
     // Memory efficiency analysis
