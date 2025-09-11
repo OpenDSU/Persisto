@@ -4,6 +4,27 @@ class PersistoClient {
         this.serverUrl = serverUrl;
     }
 
+    async #getRequest(path) {
+        const url = `${this.serverUrl}${path}`;
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(`Request failed with status ${response.status}: ${errorData.message || 'Unknown server error'}`);
+        }
+
+        const responseData = await response.json();
+        if (responseData.success) {
+            return responseData.result;
+        }
+        return responseData.hasOwnProperty('result') ? responseData.result : null;
+    }
+
     async #postRequest(path, data) {
         const url = `${this.serverUrl}${path}`;
         const response = await fetch(url, {
@@ -27,6 +48,10 @@ class PersistoClient {
         return responseData.hasOwnProperty('result') ? responseData.result : null;
     }
 
+    async getAllMethods() {
+        return this.#getRequest('/getAllMethods');
+    }
+
     async addModel(config) {
         return this.#postRequest('/addModel', config);
     }
@@ -41,6 +66,14 @@ class PersistoClient {
 
     async updateType(config) {
         return this.#postRequest('/updateType', config);
+    }
+
+    async addAsset(config) {
+        return this.#postRequest('/addAsset', config);
+    }
+
+    async updateAsset(config) {
+        return this.#postRequest('/updateAsset', config);
     }
 
     async execute(command, ...args) {
