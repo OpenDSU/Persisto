@@ -61,8 +61,8 @@ async function runTest() {
         // 1. Configure Models, Assets, Indexes, Grouping, and Rels
         console.log('Configuring server...');
         await client.addType({
-            user: { name: 'string', email: 'string', country: 'string', post: 'array' },
-            post: { title: 'string', content: 'string' }
+            user: {name: 'string', email: 'string', country: 'string', post: 'array'},
+            post: {title: 'string', content: 'string'}
         });
         await client.addAsset({
             wallet: ['owner', 'availableBalance']
@@ -75,6 +75,7 @@ async function runTest() {
         // 2. Test getAllMethods to ensure all dynamic methods are created
         console.log('Testing getAllMethods...');
         const methods = await client.getAllMethods();
+        console.log('getAllMethods response:', JSON.stringify(methods, null, 4));
 
         // Define known static/core methods to filter them out for display
         console.log('Testing getAllMethods...');
@@ -122,15 +123,15 @@ async function runTest() {
 
         // 3. Models and Indexing Test
         console.log('Testing Models and Indexing...');
-        const userToCreate = { name: 'John Doe', email: 'john.doe@example.com', country: 'USA' };
+        const userToCreate = {name: 'John Doe', email: 'john.doe@example.com', country: 'USA'};
         const createdUser = await client.execute('createUser', userToCreate);
         await client.execute('setEmailForUser', createdUser.id, userToCreate.email);
 
-        const user2 = { name: 'Jane Doe', email: 'jane.doe@example.com', country: 'USA' };
+        const user2 = {name: 'Jane Doe', email: 'jane.doe@example.com', country: 'USA'};
         const createdUser2 = await client.execute('createUser', user2);
         await client.execute('setEmailForUser', createdUser2.id, user2.email);
 
-        const user3 = { name: 'Pierre Dupont', email: 'pierre.dupont@example.com', country: 'France' };
+        const user3 = {name: 'Pierre Dupont', email: 'pierre.dupont@example.com', country: 'France'};
         const createdUser3 = await client.execute('createUser', user3);
         await client.execute('setEmailForUser', createdUser3.id, user3.email);
 
@@ -154,9 +155,9 @@ async function runTest() {
 
         // 5. Relationships (Rels) Test
         console.log('Testing Relationships...');
-        const post1 = await client.execute('createPost', { title: 'Post 1', content: 'Content 1' });
-        const post2 = await client.execute('createPost', { title: 'Post 2', content: 'Content 2' });
-        await client.execute('updateUser', createdUser.id, { post: [post1.id, post2.id] });
+        const post1 = await client.execute('createPost', {title: 'Post 1', content: 'Content 1'});
+        const post2 = await client.execute('createPost', {title: 'Post 2', content: 'Content 2'});
+        await client.execute('updateUser', createdUser.id, {post: [post1.id, post2.id]});
         const userPosts = await client.execute('getPostsFromRelWithUser', createdUser.id);
         if (!userPosts || userPosts.length !== 2) {
             failedChecks.push('Relationships test failed: Expected 2 posts for the user.');
@@ -165,9 +166,9 @@ async function runTest() {
 
         // 6. Assets Test
         console.log('Testing Assets...');
-        const wallet1 = await client.execute('createWallet', { owner: createdUser.id });
-        const wallet2 = await client.execute('createWallet', { owner: 'jane.doe@example.com' }); // Not a real user id, but ok for this test
-        await client.execute('updateWallet', wallet1.id, { availableBalance: 100 });
+        const wallet1 = await client.execute('createWallet', {owner: createdUser.id});
+        const wallet2 = await client.execute('createWallet', {owner: 'jane.doe@example.com'}); // Not a real user id, but ok for this test
+        await client.execute('updateWallet', wallet1.id, {availableBalance: 100});
         await client.execute('transferPoints', 30, wallet1.id, wallet2.id, 'test transfer');
         const wallet1Balance = await client.execute('getBalance', wallet1.id);
         const wallet2Balance = await client.execute('getBalance', wallet2.id);
@@ -189,10 +190,13 @@ async function runTest() {
 
         // 7. Select Test
         console.log('Testing Select...');
-        const selectedUsersResult = await client.execute('select', 'user', { country: 'USA' }, { sortBy: 'name', descending: true });
+        const selectedUsersResult = await client.execute('select', 'user', {country: 'USA'}, {
+            sortBy: 'name',
+            descending: true
+        });
         const selectedUsers = selectedUsersResult.objects;
         if (!selectedUsers || selectedUsers.length !== 2 || selectedUsers[0].name !== 'John Doe') {
-             failedChecks.push(`Select test failed. Expected John Doe first, got ${selectedUsers.length > 0 ? selectedUsers[0].name : 'nothing'}`);
+            failedChecks.push(`Select test failed. Expected John Doe first, got ${selectedUsers.length > 0 ? selectedUsers[0].name : 'nothing'}`);
         }
         console.log('Select test complete.');
 
