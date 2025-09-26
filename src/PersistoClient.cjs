@@ -37,7 +37,7 @@ class PersistoClient {
 
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(`Request failed with status ${response.status}: ${errorData.message || 'Unknown server error'}`);
+            throw new Error(`Request failed with status ${response.status}: ${errorData.error || 'Unknown server error'}`);
         }
 
         const responseData = await response.json();
