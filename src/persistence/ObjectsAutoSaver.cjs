@@ -70,6 +70,10 @@ function AutoSaverPersistence(storageStrategy, periodicInterval) {
         return await storageStrategy.getObjectsIndexValue(typeName);
     }
 
+    this.getIndexedObjectId = async function (typeName, indexValue) {
+        return await storageStrategy.getIndexedObjectId(typeName, indexValue);
+    }
+
     this.updateGrouping = async function (typeName, objId) {
         return await storageStrategy.updateGrouping(typeName, objId);
     }

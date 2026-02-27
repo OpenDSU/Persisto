@@ -67,13 +67,35 @@ function Persisto(smartStorage, systemLogger, config) {
             });
 
             addFunctionToSelf("delete", configKey, "", async function (objectID) {
-                let obj = await getObjectFromIdOrKey(configKey, objectID);
-                if (obj === undefined) {
-                    await $$.throwError("Cannot delete object of type " + configKey + " with ID " + objectID + ". Object not found");
+                let obj = await getObjectFromIdOrKey(configKey, objectID, true);
+
+                if (obj !== undefined) {
+                    await smartStorage.removeFromGrouping(configKey, obj.id);
+                    await smartStorage.deleteObject(configKey, obj.id);
+                    await systemLogger.smartLog(AUDIT_EVENTS.DELETE, { configKey, objectID });
+                    return;
                 }
-                await smartStorage.removeFromGrouping(configKey, obj.id);
-                await smartStorage.deleteObject(configKey, obj.id);
-                await systemLogger.smartLog(AUDIT_EVENTS.DELETE, { configKey, objectID })
+
+                // No object resolved. If primary-key index still points somewhere, clean that dangling reference.
+                if (await smartStorage.keyExistInIndex(configKey, objectID)) {
+                    let danglingObjectId = await smartStorage.getIndexedObjectId(configKey, objectID);
+                    if (danglingObjectId) {
+                        await smartStorage.removeFromGrouping(configKey, danglingObjectId);
+                        await smartStorage.deleteObject(configKey, danglingObjectId);
+                    }
+                    await systemLogger.smartLog(AUDIT_EVENTS.DELETE, { configKey, objectID, cleanedDanglingReference: true });
+                    return;
+                }
+
+                // Last chance: caller may have provided internal object id directly.
+                if (await smartStorage.objectExists(objectID)) {
+                    await smartStorage.removeFromGrouping(configKey, objectID);
+                    await smartStorage.deleteObject(configKey, objectID);
+                    await systemLogger.smartLog(AUDIT_EVENTS.DELETE, { configKey, objectID });
+                    return;
+                }
+
+                await $$.throwError("Cannot delete object of type " + configKey + " with ID " + objectID + ". Object not found");
             })
         }
     }

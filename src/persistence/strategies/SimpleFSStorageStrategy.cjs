@@ -427,6 +427,19 @@ function SimpleFSStorageStrategy() {
         return Object.keys(index.ids)
     }
 
+    this.getIndexedObjectId = async function (typeName, indexValue) {
+        let indexFieldName = _indexes[typeName];
+        if (!indexFieldName) {
+            return undefined;
+        }
+        let indexId = makeSpecialName(typeName, indexFieldName);
+        let index = await loadWithCache(indexId, true);
+        if (!index || !index.ids) {
+            return undefined;
+        }
+        return index.ids[indexValue];
+    }
+
     this.updateGrouping = async function (typeName, objId) {
         let obj = await loadWithCache(objId);
         let allGroupings = _groupings[typeName];
@@ -461,22 +474,32 @@ function SimpleFSStorageStrategy() {
     }
 
     this.deleteIndexedField = async function (objId, typeName) {
-        let obj = await loadWithCache(objId);
-        if (!obj) {
-            return;
-        }
         let indexFieldName = _indexes[typeName]
         if (!indexFieldName) {
             return;
         }
         let indexId = makeSpecialName(typeName, indexFieldName);
-        let indexValue = obj[indexFieldName];
         let indexObj = await loadWithCache(indexId, true);
-        if (!indexObj) {
+        if (!indexObj || !indexObj.ids) {
             return;
         }
-        if (indexObj.ids[indexValue] !== undefined) {
-            delete indexObj.ids[indexValue];
+
+        let changed = false;
+        let obj = await loadWithCache(objId, true);
+
+        if (obj && obj[indexFieldName] !== undefined && indexObj.ids[obj[indexFieldName]] !== undefined) {
+            delete indexObj.ids[obj[indexFieldName]];
+            changed = true;
+        } else {
+            for (let [key, value] of Object.entries(indexObj.ids)) {
+                if (value === objId) {
+                    delete indexObj.ids[key];
+                    changed = true;
+                }
+            }
+        }
+
+        if (changed) {
             setForSave(indexId);
         }
     }
@@ -493,39 +516,67 @@ function SimpleFSStorageStrategy() {
     }
 
     this.removeFromGrouping = async function (typeName, objId) {
-        let obj = await loadWithCache(objId);
+        let obj = await loadWithCache(objId, true);
         let myGroupings = _groupings[typeName];
         if (myGroupings && myGroupings.length !== 0) {
             for (let i = 0; i < myGroupings.length; i++) {
                 let groupingName = myGroupings[i].groupingName;
                 let fieldName = myGroupings[i].fieldName;
                 let grouping = await loadWithCache(groupingName);
-
-                let fieldValue = obj[fieldName];
-                if (!grouping.items[fieldValue]) {
-                    return;
+                if (!grouping || !grouping.items) {
+                    continue;
                 }
 
-                // Initialize itemSets if not present
                 if (!grouping.itemSets) {
                     grouping.itemSets = {};
                     for (let fieldVal in grouping.items) {
                         grouping.itemSets[fieldVal] = new Set(grouping.items[fieldVal]);
                     }
                 }
-                if (!grouping.itemSets[fieldValue] || !(grouping.itemSets[fieldValue] instanceof Set)) {
-                    grouping.itemSets[fieldValue] = new Set(grouping.items[fieldValue]);
+
+                let changed = false;
+
+                if (obj && obj[fieldName] !== undefined) {
+                    let fieldValue = obj[fieldName];
+                    if (!grouping.items[fieldValue]) {
+                        continue;
+                    }
+                    if (!grouping.itemSets[fieldValue] || !(grouping.itemSets[fieldValue] instanceof Set)) {
+                        grouping.itemSets[fieldValue] = new Set(grouping.items[fieldValue]);
+                    }
+
+                    if (grouping.itemSets[fieldValue].has(objId)) {
+                        grouping.items[fieldValue] = grouping.items[fieldValue].filter(id => id !== objId);
+                        grouping.itemSets[fieldValue].delete(objId);
+                        changed = true;
+
+                        if (grouping.items[fieldValue].length === 0) {
+                            delete grouping.items[fieldValue];
+                            delete grouping.itemSets[fieldValue];
+                        }
+                    }
+                } else {
+                    for (let [fieldValue, ids] of Object.entries(grouping.items)) {
+                        if (!Array.isArray(ids)) {
+                            continue;
+                        }
+                        if (!grouping.itemSets[fieldValue] || !(grouping.itemSets[fieldValue] instanceof Set)) {
+                            grouping.itemSets[fieldValue] = new Set(ids);
+                        }
+                        if (grouping.itemSets[fieldValue].has(objId)) {
+                            grouping.items[fieldValue] = ids.filter(id => id !== objId);
+                            grouping.itemSets[fieldValue].delete(objId);
+                            changed = true;
+
+                            if (grouping.items[fieldValue].length === 0) {
+                                delete grouping.items[fieldValue];
+                                delete grouping.itemSets[fieldValue];
+                            }
+                        }
+                    }
                 }
 
-                // O(1) check and removal using Set
-                if (grouping.itemSets[fieldValue].has(objId)) {
-                    grouping.items[fieldValue] = grouping.items[fieldValue].filter(id => id !== objId);
-                    grouping.itemSets[fieldValue].delete(objId);
-
-                    if (grouping.items[fieldValue].length === 0) {
-                        delete grouping.items[fieldValue];
-                        delete grouping.itemSets[fieldValue];
-                    }
+                if (changed) {
                     setForSave(groupingName);
                 }
             }
@@ -648,7 +699,16 @@ function SimpleFSStorageStrategy() {
     }
 
     this.loadObjectsRange = async function (ids, sortBy, start, end, descending) {
-        let objects = await Promise.all(ids.map(id => this.loadObject(id)));
+        const loaded = await Promise.all(
+            ids.map(async (id) => {
+                try {
+                    return await this.loadObject(id, true);
+                } catch {
+                    return undefined;
+                }
+            })
+        );
+        let objects = loaded.filter(Boolean);
         if (sortBy) {
             objects.sort((a, b) => {
                 const aVal = a[sortBy];
@@ -955,7 +1015,16 @@ function SimpleFSStorageStrategy() {
         try {
             // Get all objects of the specified type
             let ids = await this.getAllObjects(typeName);
-            let objects = await Promise.all(ids.map(id => this.loadObject(id)));
+            const loaded = await Promise.all(
+                ids.map(async (id) => {
+                    try {
+                        return await this.loadObject(id, true);
+                    } catch {
+                        return undefined;
+                    }
+                })
+            );
+            let objects = loaded.filter(Boolean);
 
             // Apply filters
             if (filters && Object.keys(filters).length > 0) {
